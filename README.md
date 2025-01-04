@@ -48,6 +48,8 @@ I have an 800x480 LCD ESP32-S3 OTG dev kit version from Waveshare with 2 USB por
 
 The advantage of the boards that provide built-in 5V is they are, or should be, done properly with a fuse and/or current limiting device so you do nto cook the client device in a mishap.  The biggest feature is no Y cable!
 
+Speaking of cables, do yourself a favor and inventory your Type C cables.  C to C and A to C.  Test them to be sure they are not charging-only cables!  Mark them if they charging only, it will save you grief!   I found I had 2 of these I was using and spent hours fixing unbroken or partially broken software. Easily missed if you are switching cables a lot while testing and do not have working software to star with and thus know what to blame.  I also lacked 18" cables.  They are all 6" or 6ft.  Creates a cable mess. I ordered 3-packs of 18" cables, much better on my desktop now.  
+
 
 #### Pin Assignment
 
