@@ -228,7 +228,7 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
-        printf("*");
+        //printf("*");
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
@@ -241,7 +241,7 @@ static void usb_lib_task(void *arg)
 static void usb_TX_task(void *arg)
 {
     while (1) {  
-        printf("+");
+        //printf("+");
         if (get_ext_mode_flag) {
             ESP_LOGI(TAG, "***Get extended mode info from radio");
             sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
@@ -332,8 +332,8 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     band = getBand(frequency);
     if (band != prev_band) {
         prev_band = band;
-        ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
-        get_ext_mode_flag = true;
+        //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
+        //get_ext_mode_flag = true;
     }
 
     // Use the band to operate our band enable outputs for the 6 905 bands.
