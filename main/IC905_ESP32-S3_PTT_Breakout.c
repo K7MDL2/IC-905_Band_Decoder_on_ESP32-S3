@@ -42,6 +42,8 @@
 #include "IC905_ESP32-S3_PTT_Breakout.h"
 #include "Decoder.h"
 #include "CIV.h"
+#include "driver/i2c_master.h"
+#include "ssd1306.h"
 
 struct Bands bands[NUM_OF_BANDS] = {
   { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
@@ -226,6 +228,8 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
+        printf("*");
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -236,18 +240,14 @@ static void usb_lib_task(void *arg)
  */
 static void usb_TX_task(void *arg)
 {
-    while (1) {
-        // Start handling system events
-        uint32_t event_flags;
-        usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
-        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
-            ESP_ERROR_CHECK(usb_host_device_free_all());
-        }
-        if (event_flags & USB_HOST_LIB_EVENT_FLAGS_ALL_FREE) {
-            ESP_LOGI(TAG, "USB: All devices freed");
-            // Continue handling USB events to allow device reconnection
-        }
+    while (1) {  
         printf("+");
+        if (get_ext_mode_flag) {
+            ESP_LOGI(TAG, "***Get extended mode info from radio");
+            sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
+            get_ext_mode_flag = false;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -293,9 +293,9 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
 
     if (USBH_connected) {
         if (msg_len < sizeof(req) - 1) {  // ensure our data is not longer than our buffer
-            ESP_LOGI("sendCatRequest", "Send CI-V Msg: ");
-            ESP_LOGI("Send_CatRequest", "%d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000));
-            vTaskDelay(2);
+            //ESP_LOGI("sendCatRequest", "***Send CI-V Msg: ");
+            ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000));
+            vTaskDelay(pdMS_TO_TICKS(10));
             ESP_LOGI("sendCatRequest", " END TX MSG, msg_len = %d", msg_len);
         } 
         else 
@@ -332,7 +332,8 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     band = getBand(frequency);
     if (band != prev_band) {
         prev_band = band;
-        sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status on band change
+        ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
+        get_ext_mode_flag = true;
     }
 
     // Use the band to operate our band enable outputs for the 6 905 bands.
@@ -554,7 +555,28 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
         }        // readline
     }          // while
 }
-
+/*
+void init_OLED(void)
+{
+    Serial.println(F("Start SSD1306 OLED display Init"));
+    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
+    if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+      Serial.println(F("SSD1306 allocation failed"));
+      for(;;); // Don't proceed, loop forever
+    }
+    // Show initial display buffer contents on the screen --
+    // the library initializes this with an Adafruit splash screen.
+    display.display();
+    delay(500);
+    // Clear the buffer
+    display.clearDisplay();
+    // Draw a single pixel in white
+    display.drawPixel(10, 10, SSD1306_WHITE);
+    // Show the display buffer on the screen. You MUST call display() after
+    // drawing commands to make them visible on screen!
+    display.display();
+}
+*/
 void setup_IO(void)
 {   
     // Set up an interrupt on our PTT input pin and set output pins
@@ -623,6 +645,10 @@ void app_main(void)
 
     setup_IO();
 
+    // create a new rtos task for main radio control loop -- not in use yet
+    BaseType_t TX_task_created = xTaskCreate(usb_TX_task, "usb_TX", 4096, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
+    assert(TX_task_created == pdTRUE);
+
     // Setup our USB Host port
     device_disconnected_sem = xSemaphoreCreateBinary();
     assert(device_disconnected_sem);
@@ -669,12 +695,11 @@ void app_main(void)
         vTaskDelay(pdMS_TO_TICKS(100));
 
         // Test sending and receiving: responses are handled in handle_rx callback
-        ESP_LOGI(TAG, "Test Send to target");
-        ESP_ERROR_CHECK(cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)EXAMPLE_TX_STRING, strlen(EXAMPLE_TX_STRING), EXAMPLE_TX_TIMEOUT_MS));
+        //ESP_LOGI(TAG, "Test Send to target");
+        //ESP_ERROR_CHECK(cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)EXAMPLE_TX_STRING, strlen(EXAMPLE_TX_STRING), EXAMPLE_TX_TIMEOUT_MS));
         
         // Test Line Coding commands: Get current line coding, change it 9600 7N1 and read again
         ESP_LOGI(TAG, "Setting up line coding");
-
         cdc_acm_line_coding_t line_coding;
         ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
         ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
@@ -692,39 +717,47 @@ void app_main(void)
         ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
                  line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
 
-        USBH_connected = true;
-        vTaskDelay(20);
-        // We can now send to CI-V
-        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
-        //SetFreq(145500000);
-        vTaskDelay(20);
-
         // We are done. Wait for device disconnection and start over
         //ESP_LOGI(TAG, "Example finished successfully! You can reconnect the device to run again.");
-        // program waits here while tasks run handling events
 
-        // create a new rtos task for main radio control loop
-        BaseType_t task_created = xTaskCreate(usb_TX_task, "usb_TX", 4096, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
-        assert(task_created == pdTRUE);
-      
-        sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
+        USBH_connected = true;
+
+        // We can now send to CI-V
+        vTaskDelay(20);  // Time for radio to to beready for comms after connection
+        
+        ESP_LOGI(TAG, "***Starting CI-V communications");
+        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
+        //SetFreq(145500000);  // Used for testing
+       
+        ESP_LOGI(TAG, "***Get frequency from radio");
         sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
+        vTaskDelay(pdMS_TO_TICKS(2));
+
+        // Get started by retrieving frequency, mode, time & location and time offset.
+        ESP_LOGI(TAG, "***Get extended mode info from radio");
+        sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
+        vTaskDelay(pdMS_TO_TICKS(2));
+
+        ESP_LOGI(TAG, "***Get UTC Time offset from radio");
         if (radio_address == IC905)                  //905
             sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
         else if (radio_address == IC705)             // 705
             sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
+        vTaskDelay(pdMS_TO_TICKS(2));
+        
+        ESP_LOGI(TAG, "***Get time, date and position from radio.  We wil then calculate grid square");
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
+        vTaskDelay(pdMS_TO_TICKS(5));
 
-        while(0)
-        {
+        ESP_LOGI(TAG, "***Now wait for radio dial and band change messaages");
+        // usb_TX_task() is where our program runs within now.  
+        // handler_rx takes care of received events
+        // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.
+        // Incoming CIV data appears in handler_rx whih in turn calls process messages and CIV_Action. 
+        // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
+        // or read frequency() calling get ext mode, set a flag and let usb_TX_task() handle it.
 
-            if (get_ext_mode_flag) {   // Got basic mode info from radio, now need to get ext mode for data mode condition.
-                sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-                get_ext_mode_flag = false;
-            }
-
-        }
-
+        // program waits here while tasks run handling events
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }
 }

@@ -440,7 +440,7 @@ uint8_t getByteResponse(const uint8_t m_Counter, const uint8_t offset, const uin
 void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t rd_buffer[]) 
 { 
   #ifdef DBG_CIV1
-  ESP_LOGI(TAG, "CIV_Action: Entry - cmd = %X  data_start_idx = %d  data_len = %d  rd_buffer:%X %X %X %X %X %X %X %X %x %X %X\n", cmd_List[cmd_num].cmdData[1], \
+  ESP_LOGI("CIV_Action", "Entry - cmd = %X  data_start_idx = %d  data_len = %d  rd_buffer:%X %X %X %X %X %X %X %X %x %X %X\n", cmd_List[cmd_num].cmdData[1], \
              data_start_idx, data_len, rd_buffer[0], rd_buffer[1], rd_buffer[2], rd_buffer[3],rd_buffer[4], rd_buffer[5], rd_buffer[6], \
              rd_buffer[7],rd_buffer[8], rd_buffer[9], rd_buffer[10]);
   #endif
@@ -511,8 +511,8 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         //}
 
         // This command info lacks data mode status so have to use it to trigger extended mode info
-        sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-        //get_ext_mode_flag = true;
+        ESP_LOGI("CIV Mode", "***Set flag to get extended mode data after a mode was message received");
+        get_ext_mode_flag = true;
         
         ESP_LOGI("CIV_Action MOD_SEND", "CIV_Action: CI-V Returned Mode: %s", modeList[i].mode_label);  
         ESP_LOGI("CIV_Action MOD_SEND", "  Mode Index: %d", i); 
@@ -801,7 +801,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
           //knowncommand = false;
   }
   #ifdef DBG_CIV2
-    ESP_LOGI(TAG, "CIV_Action: Radio Status %13llu   band = %s   %7s  %11s  %5s  %6s  PRE:%d  ATT:%d  PTT:%d\n", \
+    ESP_LOGI("CIV_Action","Radio Status %13llu   band = %s   %7s  %11s  %5s  %6s  PRE:%d  ATT:%d  PTT:%d\n", \
           frequency, bands[band].band_name, modeList[radio_mode].mode_label, ModeStr[radio_data], FilStr[radio_filter], \
           AgcStr[bands[band].agc], bands[band].preamp, bands[band].atten, PTT);
           
