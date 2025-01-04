@@ -20,14 +20,15 @@ In the near future I will support a 128x32 OLED display with PTT, band, time, da
 
 In a more distant future I may make this work over USB and BLE (Bluetooth Low Energy) for an IC-705 with transverter support.  This already exists in my other projects but this project will have a PCB designed for it, making it a bit more convenient for some.
 
-This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with itnerrupts from other samples and chunclks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
+This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with interrupts from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
 
 
 ## How to use example
 
-Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompled firmware per insttructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository lcoally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
+Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
 
-You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  The otehr run this code.  Ths code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so wil lconnect with either a radio or a device.  The VID and PID I used is for the us
+You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  On the other run this code.  This code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so will connect with either a radio or the ESP32-S3 DevKit 1 device.   When things are working you will see the debug with the correct frequency and you can put a voltmeter on the board IO pins and see 0V and 3.3V per the pin assignments.
+
 
 ### Hardware Required
 
@@ -63,7 +64,48 @@ The pins are defined in the decoder.h file. There are 13 pins used.  1 for PTT i
 
 ### Build and Flash
 
-Build this project and flash it to the USB OTG host board, then run monitor tool to view serial output:
+Build this project using the esp-idf extension in VS Code and flash it to the USB OTG host board, then run monitor tool to view serial output. There are some settings that have to be made located in the sdkconfig file for hub support and packet size.  YOu can edit it or use menuconfig tool.
+
+Below are the OTG related settings. OTG must be yes, and I modify or enable these 2. 
+CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE = 2048   --> if you see errors this is usually the culprit, default of 256 is too small for hubs.
+CONFIG_USB_HOST_HUBS_SUPPORTED=y     --> If you see you cannot open the radio and it is connected, this is likely not set
+
+      #
+      # USB-OTG
+      #
+      CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=2048
+      CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
+      # CONFIG_USB_HOST_HW_BUFFER_BIAS_IN is not set
+      # CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is not set
+      
+      #
+      # Hub Driver Configuration
+      #
+      
+      #
+      # Root Port configuration
+      #
+      CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=250
+      CONFIG_USB_HOST_RESET_HOLD_MS=30
+      CONFIG_USB_HOST_RESET_RECOVERY_MS=30
+      CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=10
+      # end of Root Port configuration
+      
+      CONFIG_USB_HOST_HUBS_SUPPORTED=y
+      CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
+      
+      #
+      # Downstream Port configuration
+      #
+      CONFIG_USB_HOST_EXT_PORT_RESET_RECOVERY_DELAY_MS=30
+      # CONFIG_USB_HOST_EXT_PORT_CUSTOM_POWER_ON_DELAY_ENABLE is not set
+      # end of Downstream Port configuration
+      # end of Hub Driver Configuration
+      
+      # CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set
+      CONFIG_USB_OTG_SUPPORTED=y
+      # end of USB-OTG
+
 
 If using one board for a device rather than the radio, build and flash [tusb_serial_device example](../../../device/tusb_serial_device) to USB device board.  It does not have to be a OTG capable board, just a ESP32 with 1 free USB port.
 
@@ -97,4 +139,4 @@ It will also poll the radio for extended mode information when you change bands 
 
 Wiki Pages will contain more as I get further along in this effort.
 
-I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and perhaps an OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be conenctors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
+I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and an optional OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be connectors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
