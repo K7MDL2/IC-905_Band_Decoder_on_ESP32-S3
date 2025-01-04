@@ -5,7 +5,7 @@ Updated January 3, 2025
 
 # USB Band Decoder for the IC-905
 
-This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid sqaure calcuation), and extended mode info (data and voice mode).  
+This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calcuation), and extended mode info (data and voice mode).  
 
 It provides:
 * 6 band outputs for switching antenna relays, enabling RF amps, etc.
@@ -16,18 +16,19 @@ By default each band (there are 6) is configured to operate one Band output pin 
 
 The PTT output pin(s) are set to logic 1 (3.3VDC) to operate a buffer which usually inverts the signal thus closing the buffer output to GND, the most common for external amplifiers.  PTT polarity is easily changed in the code if needed.
 
-In the near future I will support a 128x32 OLED display with PTT, band, time, date, and grid status.  LEDs may be placed on the outputs and input as well, TBD. 
+In the near future I will support a 128x32 OLED display with PTT, band, time, date, and grid status.  LEDs may be placed on the outputs and input as well, TBD.   Debounce the PTT Input.  The flex_glitch filter does not apply to the S3 so some debouncing coding required.
 
 In a more distant future I may make this work over USB and BLE (Bluetooth Low Energy) for an IC-705 with transverter support.  This already exists in my other projects but this project will have a PCB designed for it, making it a bit more convenient for some.
 
-This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with itnerrupts from other samples and chunclks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
+This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with interrupts from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
 
 
 ## How to use example
 
-Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompled firmware per insttructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repositiry lcoally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
+Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
 
-You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  The otehr run this code.  Ths code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so wil lconnect with either a radio or a device.  The VID and PID I used is for the us
+You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  On the other run this code.  This code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so will connect with either a radio or the ESP32-S3 DevKit 1 device.   When things are working you will see the debug with the correct frequency and you can put a voltmeter on the board IO pins and see 0V and 3.3V per the pin assignments.
+
 
 ### Hardware Required
 
@@ -36,13 +37,19 @@ You will need one ESP32-S3 board which is capable of USB-OTG support.  Some othe
 I used 2 board models, one with Host 5V and a 4.3" LCD screen, the other a small module with no screen and you need to have a Y cable to siupply +5VDc on the USB host bus port.  ESP32-S3 devices here that support OTG and have a second USB port for debug and programming.  Will need to settle on the final device to use.
 
 What I used:
+
 ESP32-S3-DevKit N16R8 Development Board - small module with 2 ports. About $7 each.  You need to add 5V with a Y cable or jumper to USB or external 5V to power the client device (radio or another test board).  There are many variations that will work, most important is the ESP32-S3 and the 2 USB ports, one OTG.
+
 https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/user_guide.html#getting-started
+
 https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide.html
+
 These have no screen and no Type A host port, but still have 2 USB ports, one is OTG.  Has WiFi and Bluetooth Low Energy (BLE).
 
 I have this one on order and plan to test with.  ESP32-S3-USB-OTG Development Board.  About $35.
+
 https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-usb-otg/user_guide.html
+
 This uses a ESP32-S3-Mini module stacked on a like-sized motherboard with a 1.3” LCD and 2 USB connectors. One is a USB Type A female host that provides 5V@500ma and the other a USB Type A male to connect to a PC.
 
 I have M5Stack M5StampS3 and M5StackC3U CPU modules, about $7 each, they support USB OTG but ony come with 1 USB port. You can connect to the 2nd port for USB with some wiring.  Once the code is uploaded over the single OTG port in boot mode, it will run the new firmware and go into OTG host mode to tallk to the radio.  I plan to test with this in the near future.
@@ -63,7 +70,50 @@ The pins are defined in the decoder.h file. There are 13 pins used.  1 for PTT i
 
 ### Build and Flash
 
-Build this project and flash it to the USB OTG host board, then run monitor tool to view serial output:
+Build this project using the esp-idf extension in VS Code and flash it to the USB OTG host board, then run monitor tool to view serial output. There are some settings that have to be made located in the sdkconfig file for hub support and packet size.  YOu can edit it or use menuconfig tool.
+
+Below are the OTG related settings. I modify or enable these.  They are sometimes lost if you start the Setup Configure Extension wizard.  I included in the repository here 'sdkconfig.defaults' file which has these.  In theory it will help ensure you do not lose these values.
+
+      CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE = 2048   --> if you see errors this is usually the culprit, default of 256 is too small for hubs.
+      CONFIG_USB_HOST_HUBS_SUPPORTED=y     --> If you see you cannot open the radio and it is connected, this is likely not set
+      CONFIG_USB_OTG_SUPPORTED=y   --> usually already set.
+
+      #
+      # USB-OTG
+      #
+      CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE=2048
+      CONFIG_USB_HOST_HW_BUFFER_BIAS_BALANCED=y
+      # CONFIG_USB_HOST_HW_BUFFER_BIAS_IN is not set
+      # CONFIG_USB_HOST_HW_BUFFER_BIAS_PERIODIC_OUT is not set
+      
+      #
+      # Hub Driver Configuration
+      #
+      
+      #
+      # Root Port configuration
+      #
+      CONFIG_USB_HOST_DEBOUNCE_DELAY_MS=250
+      CONFIG_USB_HOST_RESET_HOLD_MS=30
+      CONFIG_USB_HOST_RESET_RECOVERY_MS=30
+      CONFIG_USB_HOST_SET_ADDR_RECOVERY_MS=10
+      # end of Root Port configuration
+      
+      CONFIG_USB_HOST_HUBS_SUPPORTED=y
+      CONFIG_USB_HOST_HUB_MULTI_LEVEL=y
+      
+      #
+      # Downstream Port configuration
+      #
+      CONFIG_USB_HOST_EXT_PORT_RESET_RECOVERY_DELAY_MS=30
+      # CONFIG_USB_HOST_EXT_PORT_CUSTOM_POWER_ON_DELAY_ENABLE is not set
+      # end of Downstream Port configuration
+      # end of Hub Driver Configuration
+      
+      # CONFIG_USB_HOST_ENABLE_ENUM_FILTER_CALLBACK is not set
+      CONFIG_USB_OTG_SUPPORTED=y
+      # end of USB-OTG
+
 
 If using one board for a device rather than the radio, build and flash [tusb_serial_device example](../../../device/tusb_serial_device) to USB device board.  It does not have to be a OTG capable board, just a ESP32 with 1 free USB port.
 
@@ -95,6 +145,6 @@ Various Hex data and debug messages follow.
 The firmware will poll the radio on startup for time, data, location, time offset, frequency, and mode.
 It will also poll the radio for extended mode information when you change bands or modes since the standard mode message omits the Datamode status.
 
-Wiki Pages wil lcontain more as I get furnter along in this effort.
+Wiki Pages will contain more as I get further along in this effort.
 
-I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and perhaps an OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be conenctors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
+I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and an optional OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be connectors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
