@@ -63,9 +63,9 @@ The pins are defined in the decoder.h file. There are 13 pins used.  1 for PTT i
 
 ### Build and Flash
 
-Build this project and flash it to the USB host board, then run monitor tool to view serial output:
+Build this project and flash it to the USB OTG host board, then run monitor tool to view serial output:
 
-If using one OTG board for a device rather than the radio, build and flash [tusb_serial_device example](../../../device/tusb_serial_device) to USB device board.
+If using one board for a device rather than the radio, build and flash [tusb_serial_device example](../../../device/tusb_serial_device) to USB device board.  It does not have to be a OTG capable board, just a ESP32 with 1 free USB port.
 
 See the ESP-IDF Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
 
