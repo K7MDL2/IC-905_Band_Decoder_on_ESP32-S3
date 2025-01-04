@@ -20,6 +20,9 @@ In the near future I will support a 128x32 OLED display with PTT, band, time, da
 
 In a more distant future I may make this work over USB and BLE (Bluetooth Low Energy) for an IC-705 with transverter support.  This already exists in my other projects but this project will have a PCB designed for it, making it a bit more convenient for some.
 
+This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with itnerrupts from other samples and chunclks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
+
+
 ## How to use example
 
 Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompled firmware per insttructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repositiry lcoally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
@@ -46,7 +49,9 @@ I have M5Stack M5StampS3 and M5StackC3U CPU modules, about $7 each, they support
 
 I have an 800x480 LCD ESP32-S3 OTG dev kit version from Waveshare with 2 USB ports, one 5V powered OTG, that works well also scien it provides the needed 5V.  About $35.
 
-The advantage of the boards that provide built-in 5V is they are, or should be, done properly with a fuse and/or current limiting device so you do nto cook the client device in a mishap.  The biggest feature is no Y cable!
+One CPU in particular I might try out is the M5stack M5AtomS3.  It has a 0.95" color LCD, one OTG port. It looks pretty good and is very small yet readable, I use it on my 705 decoder. Adding i2c connector IO expansion is easy, just a 4-wire cable that plugs in.  The hard part is how to mount it in a box. 
+
+The advantage of the boards that provide built-in 5V is they are, or should be, done properly with a fuse and/or current limiting device so you do not cook the client device in a mishap.  The biggest feature is no Y cable!
 
 Speaking of cables, do yourself a favor and inventory your Type C cables.  C to C and A to C.  Test them to be sure they are not charging-only cables!  Mark them if they charging only, it will save you grief!   I found I had 2 of these I was using and spent hours fixing unbroken or partially broken software. Easily missed if you are switching cables a lot while testing and do not have working software to star with and thus know what to blame.  I also lacked 18" cables.  They are all 6" or 6ft.  Creates a cable mess. I ordered 3-packs of 18" cables, much better on my desktop now.  
 
