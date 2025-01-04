@@ -5,7 +5,7 @@ Updated January 3, 2025
 
 # USB Band Decoder for the IC-905
 
-This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid sqaure calcuation), and extended mode info (data and voice mode).  
+This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calcuation), and extended mode info (data and voice mode).  
 
 It provides:
 * 6 band outputs for switching antenna relays, enabling RF amps, etc.
@@ -16,7 +16,7 @@ By default each band (there are 6) is configured to operate one Band output pin 
 
 The PTT output pin(s) are set to logic 1 (3.3VDC) to operate a buffer which usually inverts the signal thus closing the buffer output to GND, the most common for external amplifiers.  PTT polarity is easily changed in the code if needed.
 
-In the near future I will support a 128x32 OLED display with PTT, band, time, date, and grid status.  LEDs may be placed on the outputs and input as well, TBD. 
+In the near future I will support a 128x32 OLED display with PTT, band, time, date, and grid status.  LEDs may be placed on the outputs and input as well, TBD.   Debounce the PTT Input.  The flex_glitch filter does not apply to the S3 so some debouncing coding required.
 
 In a more distant future I may make this work over USB and BLE (Bluetooth Low Energy) for an IC-705 with transverter support.  This already exists in my other projects but this project will have a PCB designed for it, making it a bit more convenient for some.
 
@@ -25,7 +25,7 @@ This codes started out with the esp-idf peripherals example for cdc-acm usb host
 
 ## How to use example
 
-Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompled firmware per insttructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repositiry lcoally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
+Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompled firmware per insttructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository lcoally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
 
 You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  The otehr run this code.  Ths code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so wil lconnect with either a radio or a device.  The VID and PID I used is for the us
 
@@ -95,6 +95,6 @@ Various Hex data and debug messages follow.
 The firmware will poll the radio on startup for time, data, location, time offset, frequency, and mode.
 It will also poll the radio for extended mode information when you change bands or modes since the standard mode message omits the Datamode status.
 
-Wiki Pages wil lcontain more as I get furnter along in this effort.
+Wiki Pages will contain more as I get further along in this effort.
 
 I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and perhaps an OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be conenctors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
