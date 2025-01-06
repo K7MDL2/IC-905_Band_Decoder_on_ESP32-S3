@@ -1,41 +1,15 @@
 | Supported Targets | ESP32-S3 |
 | ----------------- | -------- |
 
-      Updated January 5, 2025
+Updated January 5, 2025
 
-I looked at the PTT input and no debouce is required.  It is a transistor output and there is no trouble with it.  There is a 5V pullup in the radio, perfect for TTL logic including the ULN2803A I am using for a buffer device.  I measured 0.6ma driving a 2803A input direct.  It is good for 500ma continuous load on any one output, 600ma total package.
+As development is on progress, changes can happen daily.  See the Development Notes page for latest info on changes and design intent, decisions to be made or done.
 
-I imported some of the 705 transverter code to support the M5Stack AtomsS3 and its small color LCD screen.  It is a single Type-C USB port that is capable of OTG host mode and has a 0.95" color graphics LCD display that is very bright and sharp so small text can stand out.  I wanted to try programming and using host mode on a single port device. This would allow selection of smaller ESP32-S3 modules saving room.  The display is also handy, better quality than the typical small OLEDs and I can fit all the useful info on a single screen, no need to rotate screens.  I have time, date, grid square (8-digits), band name, PTT TX status icon, and dial frequency displayed.  How to mount it requires some creativity though.  I have M5StampC3U and M5StampS3 modules that are very OTG capable and small, but still have many IO pins without needing an I2C expander chip.  We need 13 pins. 
+https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
-I plan to build this on a small single port module.  Debate welcome.  Cost is no difference.  It is easy to develop on a 2-port board then load it up on a single port target.  You just hold the reset button for several seconds and it changes to device mode for programming.  I figure most users are not going to modify the code for this, at least rarely, maybe only to set up custom output pin patterns.  Setting up the esp-idf dev environment is not likely going to fly for a non-developer so I plan to offer compiled images that can be flashed with minimal tooling required.  M5 has a standalone flash tool that I should be able to leverage.
+Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
+https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
-      Prototype hardware plan for this week:
-      1. Small black aluminum case, 100mm x 82mm x 27mm.  Has PCB slots, split body with end plates.  I have one with mounting flanges which is connenient but that is no longer available.  I plan to mount mine on the Peavy cage surrounding my 905 controller, it has lots of 1/4-20 threaded holes all over.
-      2. 2x 12V coaxial jacks connected together to pass through 12V power to the 905.  If the decoder is mounted on the 905 controller then this is 1 less cable to unplug.
-      3. Right-angle 15-pin HD D-Sub PCB-mount connector for 12 outputs.  For Band, PTT, and 1 PTT input line which will be in parallel with the phone jack.
-      4. Phono jack for PTT input from the 905 SEND port. 
-      5. The CPU USB port will stick out on one end plate.
-      6. Debating puttig a power switch in.  Not sure it has a real use.
-      7. Internal resettable poly fuse and reverse polarity diode.
-      8. ULN2803A buffers (x2).
-
-Will cut a vectorboard to fit the case and hand wire it.  When it is finalized, and prove it all fits in, I can do a PCB layout and publishe the BOM.
-
-The decoder, USB and SEND cables, can stay attached to the radio and you can simply plug/unplug the 12V feed and HD15 cables for setup/teardown, leaving the USB abnd 12V cables between the decoder and controller in place. If the decoder is remote located then no issue, you have to extend the USB as required though.  I have a USB extender that works over a long 4-pair enet cable (not ethernet, just the same cable type.)
-
-I checked in code today that supports the M5AtomS3.  Has a single OTG USB port, works fine.  The 0.95" color LCD is sharp and easily shows useful information.  Band, grid, time, frequency, PTT.  
-      
-To switch between the AtomS3 and other boards there is a #define AtomS3 near the top of the IC905_ESP32-S3_PTT_Breakout.cpp file.  After connecting to your computer, hold the AtomS3 reset button for > 3 seconds to put it into boot mode.  In the IDE change to ESP32S3 and choose the built-in-JTAG option.  For the dual port Dev-Kit-1 choose the last option Prog2.  See pic below.  I usally delete the build folder for a clean build.  sdkconfig sometinmes gets confused.  I keep all my changed config settings in the sdkconfig.defaults file.  
-
-![alt text]({95E6D643-2EC6-486C-AEC3-782D89C2BF75}.png)
-
-![alt text](image.png)
-
-![alt text](image-1.png)
-
-![alt text](image-2.png)
-
-I also added in CI_V address config and VID/PIDs for the IC-705 and IC-9700.  It works on the 705 as long as you stay on the 144 and 430 bands.  I stripped support for the lower bands from the code I imported from the 705 project since I was targeting the 905.  I will likely revisit that decision.  I do not have an IC-9700 to test with so are waiting for feedback.
 
 
 # USB Band Decoder for the IC-905
@@ -58,9 +32,7 @@ In a more distant future I may make this work over USB and BLE (Bluetooth Low En
 This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with interrupts from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
 
 
-## How to use example
-
-Be sure to look at thge Wiki pages https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
+## How to use
 
 Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
 
