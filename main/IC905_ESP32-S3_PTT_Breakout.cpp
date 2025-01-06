@@ -1,5 +1,5 @@
 /*
- * IC905_ESP32-S3_PTT_Breakout.c
+ * IC905_ESP32-S3_PTT_Breakout.cpp
  *
  * This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency message #00.
  * For 10GHz and higher the IC-905 adds 1 extra byte thqat must be accounted for to decod the BCD  encoded frequency

@@ -23,6 +23,19 @@
 
       The decoder, USB and SEND cables, can stay attached to the radio and you can simply plug/unplug the 12V feed and HD15 cables for setup/teardown, leaving the USB abnd 12V cables between the decoder and controller in place. If the decoder is remote located then no issue, you have to extend the USB as required though.  I have a USB extender that works over a long 4-pair enet cable (not ethernet, just the same cable type.)
 
+      I checked in code today that supports the M5AtomS3.  Has a single OTG USB port, works fine.  The 0.95" color LCD is sharp and easily shows useful information.  Band, grid, time, frequency, PTT.  
+      
+      To switch between the AtomS3 and other boards there is a #define AtomS3 near the top of the IC905_ESP32-S3_PTT_Breakout.cpp file.  After connecting to your computer, hold the AtomS3 reset button for > 3 seconds to put it into boot mode.  In the IDE change to ESP32S3 and choose the built-in-JTAG option.  For the dual port Dev-Kit-1 choose the last option Prog2.  See pic below.  I usally delete the build folder for a clean build.  sdkconfig sometinmes gets confused.  I keep all my changed config settings in the sdkconfig.defaults file.  
+
+      ![alt text]({95E6D643-2EC6-486C-AEC3-782D89C2BF75}.png)
+
+      ![alt text](image.png)
+
+      ![alt text](image-1.png)
+
+      ![alt text](image-2.png)
+
+I also added in CI_V address config and VID/PIDs for the IC-705 and IC-9700.  It works on the 705 as long as you stay on the 144 and 430 bands.  I stripped support for the lower bands from the code I imported from the 705 project since I was targeting the 905.  I will likely revisit that decision.  I do not have an IC-9700 to test with so are waiting for feedback.
 
 
 # USB Band Decoder for the IC-905
