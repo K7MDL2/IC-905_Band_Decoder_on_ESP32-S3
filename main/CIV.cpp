@@ -12,13 +12,14 @@
 #include "IC905_ESP32-S3_PTT_Breakout.h"
 //#include "TimeLib.h"
 #include "time.h"
+#include <sys/time.h>
+#include <ctime>
 #include "CIV.h"
-
 
 static const char *TAG = "CIV";
 
 // CIV related stuff
-void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t rd_buffer[]);
+//void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 extern struct Bands bands[]; 
 char Grid_Square[GRIDSQUARE_LEN];   /* 10 char grid square max to be used - store d here as last known good Grid Flash icon if no valid GPS input*/
 extern uint8_t UTC;    // 0 local time, 1 UTC time
@@ -38,6 +39,8 @@ struct position p[1] = {};
 extern uint64_t frequency;
 extern void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t Data_len);  // first byte in Data is length
 extern bool get_ext_mode_flag;
+extern struct tm tm;
+extern time_t t;
 
 uint8_t radio_mode;      // mode from radio messages
 uint8_t radio_filter;    // filter from radio messages
@@ -123,6 +126,7 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
 // For datamode, simple check for 1 or 0. If o hen data mode must be off.  If 1, data mode must be on.  
 // in a table search, that would change the displayed mode label from USB to USB-D for example, they are both the same base mode, 0x01.
 // 
+
 struct Modes_List modeList[MODES_NUM] = {
     {0x00, "LSB   ", 3, 0},
     {0x01, "USB   ", 3, 0},
@@ -141,28 +145,6 @@ struct Modes_List modeList[MODES_NUM] = {
     {0x22, "DD    ", 1, 0},  // hex 22 is 34 dec  // not on 705, on 905
     {0x23, "ATV   ", 1, 0}   // hex 23 is 35 dec  // not on 705, on 905
  };
-
-// translation of the radio's general mode
-const char ModeStr[3][11] = {
-  "MODE_VOICE",
-  "MODE_DATA",
-  "MODE_NDEF"
-};
-
-const char AgcStr[4][6] = {
-    {"AGC- "},  // 0 reserved for AGC OFF
-    {"AGC-F"},  // 1
-    {"AGC-M"},  // 2
-    {"AGC-S"}   // 3
-};
-
-// clear text translation of the Filter setting
-const char FilStr[4][5] = {
-  "NDEF",
-  "FIL1",   // 1 (1 .. 3 is according to ICOM's documentation)
-  "FIL2",
-  "FIL3"
-};
 
 // states of radio's DC-Power (on/Off State)
 const char radioOnOffStr[6][13] = {
@@ -423,6 +405,27 @@ uint8_t getByteResponse(const uint8_t m_Counter, const uint8_t offset, const uin
   return ret;
 }
 
+
+void setTime(int hr, int min, int sec, int mday, int month, int yr)  // modifed to match arduino TimeLib versionq}
+//void setTime(int yr, int month, int mday, int hr, int minute, int sec, int isDst)  // orignal example
+{
+    setenv("TZ", "UTC", 1);
+    tzset();
+
+    tm.tm_year = yr - 1900;   // Set date
+    tm.tm_mon = month-1;
+    tm.tm_mday = mday;
+    tm.tm_hour = hr;      // Set time
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+    //tm.tm_isdst = isDst;  // 1 or 0
+    tm.tm_isdst = 0;  // 1 or 0  // setting to 0 for UTC only use
+    t = mktime(&tm);
+    ESP_LOGI(TAG, "Setting time: %s", asctime(&tm));
+    //char *myDate0 = ctime(&t);
+    //ESP_LOGI(TAG, "0-myDate: %s", myDate0);
+}
+
 //
 //  CIV_Action - Takes action on a sucessfully parsed CIV command result from processmessages()
 //  Add new CIV commands action here
@@ -434,13 +437,13 @@ uint8_t getByteResponse(const uint8_t m_Counter, const uint8_t offset, const uin
 //  3. add the new switch case statement with the new enum index
 //
 
-#define DBG_CIV1  // command parser entry
+//#define DBG_CIV1  // command parser entry
 #define DBG_CIV2  // just do summary print
 
-void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t rd_buffer[]) 
+void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer) 
 { 
   #ifdef DBG_CIV1
-  ESP_LOGI("CIV_Action", "Entry - cmd = %X  data_start_idx = %d  data_len = %d  rd_buffer:%X %X %X %X %X %X %X %X %x %X %X\n", cmd_List[cmd_num].cmdData[1], \
+  ESP_LOGI("CIV_Action", "Entry - cmd = %X  data_start_idx = %d  data_len = %d  rd_buffer:%X %X %X %X %X %X %X %X %x %X %X", cmd_List[cmd_num].cmdData[1], \
              data_start_idx, data_len, rd_buffer[0], rd_buffer[1], rd_buffer[2], rd_buffer[3],rd_buffer[4], rd_buffer[5], rd_buffer[6], \
              rd_buffer[7],rd_buffer[8], rd_buffer[9], rd_buffer[10]);
   #endif
@@ -571,7 +574,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         ESP_LOGI(TAG, "UTC Offset: %d:%d", hr_off, min_off);
 
         //get current time and correct or set time zone offset
-        //setTime(_hr,_min,_sec,_day,_month,_yr);
+        //setTime(_hr,_min,_sec,_day,_month,_yr);  // apply offset in time set function
         break;
     }  // UTC Offset
 
@@ -639,17 +642,16 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         else
           sniprintf(Longitude, 13, "%c%s", ' ', temp_str); 
         
-        printf("CIV_Action: Longitude Converted to dd mm ss format:  deg=%f   min=%f   long=%f  string=%s  %s\n",longi_deg, longi_min, longi, Latitude, Longitude);
+        //ESP_LOGI(TAG, "CIV_Action: Longitude Converted to dd mm ss format:  deg=%f   min=%f   long=%f  string=%s  %s",longi_deg, longi_min, longi, Latitude, Longitude);
 
         // if using NMEA string then proved a formnatted string like belw and convert to minutes  
         //strcpy(GPS_Msg, "4746.92382,N,12201.98606,W\0"};   // test string
         //ConvertToMinutes(GPS_Msg);       
         // Here I directly converted to what Convert_to_MH wants
         Convert_to_MH();
-        printf("CIV_Action: GPS Converted: Lat = %s  Long = %s  Grid Square is %s\n", Latitude, Longitude, Grid_Square);
+        //ESP_LOGI(TAG, "CIV_Action: GPS Converted: Lat = %s  Long = %s  Grid Square is %s", Latitude, Longitude, Grid_Square);
+        //ESP_LOGI(TAG, "CIV_Action: ** Time from Radio is: ");
 
-        ESP_LOGI(TAG, "CIV_Action: ** Time from Radio is: ");
-        
         uint8_t d_index = 0;
         if (skip_altitude) 
             d_index = 4;
@@ -664,15 +666,42 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         
         if (!UTC) 
         {
-          //setTime(_hr+hr_off,_min+min_off,_sec,_day,_month,_yr);  // correct to local time                      
-          printf("Local Time: %d:%d:%d  %d/%d/20%d\n",_hr+hr_off,_min+min_off,_sec,_month,_day,_yr); 
+          setTime(_hr+hr_off,_min+min_off,_sec,_day,_month,_yr);  // correct to local time                      
+          ESP_LOGI(TAG, "Local Time: %d:%d:%d  %d/%d/20%d",_hr+hr_off,_min+min_off,_sec,_month,_day,_yr); 
         }
         else
         {
-          //setTime(_hr,_min,_sec,_day,_month,_yr);  // display UTC time
-          printf("UTC Time: %d:%d:%d  %d/%d/20%d\n",_hr,_min,_sec,_month,_day,_yr); 
+          setTime(_hr,_min,_sec,_day,_month,_yr);  // display UTC time
+          //ESP_LOGI(TAG, "UTC Time: %d:%d:%d  %d/%d/%d",_hr,_min,_sec,_month,_day,_yr); 
         }
         break;
+      /*
+        %a Abbreviated weekday name 
+        %A Full weekday name 
+        %b Abbreviated month name 
+        %B Full month name 
+        %c Date and time representation for your locale 
+        %d Day of month as a decimal number (01-31) 
+        %H Hour in 24-hour format (00-23) 
+        %I Hour in 12-hour format (01-12) 
+        %j Day of year as decimal number (001-366) 
+        %m Month as decimal number (01-12) 
+        %M Minute as decimal number (00-59) 
+        %p Current locale’s A.M./P.M. indicator for 12-hour clock 
+        %S Second as decimal number (00-59) 
+        %U Week of year as decimal number,  Sunday as first day of week (00-51) 
+        %w Weekday as decimal number (0-6; Sunday is 0) 
+        %W Week of year as decimal number, Monday as first day of week (00-51) 
+        %x Date representation for current locale 
+        %X Time representation for current locale 
+        %y Year without century, as decimal number (00-99) 
+        %Y Year with century, as decimal number 
+        %z %Z Time-zone name or abbreviation, (no characters if time zone is unknown) 
+        %% Percent sign 
+        You can include text literals (such as spaces and colons) to make a neater display or for padding between adjoining columns. 
+        You can suppress the display of leading zeroes  by using the "#" character  (%#d, %#H, %#I, %#j, %#m, %#M, %#S, %#U, %#w, %#W, %#y, %#Y) 
+      */
+
     }  // MY Position
 
     case CIV_C_PREAMP_READ: {
@@ -801,7 +830,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
           //knowncommand = false;
   }
   #ifdef DBG_CIV2
-    ESP_LOGI("CIV_Action","Radio Status %13llu   band = %s   %7s  %11s  %5s  %6s  PRE:%d  ATT:%d  PTT:%d\n", \
+    ESP_LOGI("CIV_Action","Radio Status %13llu   band = %s   %7s  %11s  %5s  %6s  PRE:%d  ATT:%d  PTT:%d", \
           frequency, bands[band].band_name, modeList[radio_mode].mode_label, ModeStr[radio_data], FilStr[radio_filter], \
           AgcStr[bands[band].agc], bands[band].preamp, bands[band].atten, PTT);
           

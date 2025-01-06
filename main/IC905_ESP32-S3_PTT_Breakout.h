@@ -7,7 +7,9 @@
 
 #define IC705 0xA4
 #define IC905 0xAC
+#define IC9700 0xA2
 #define RADIO_ADDR IC905
+
 #define WIRED_PTT   1           // 1 = use the wired input for fastest PTT response time
                                 // 0 = poll radio for TX status. Polling delay can be adjusted with parameters below.
 // NOTE: With a single USB virtual Serial port to the PC, ANY debug on Serial will interfere with a program like WSJT-X passing through to teh radio.
@@ -60,18 +62,24 @@
 // cannot open this device as acm.  Maybe it is the spectrum channel
 // VID and PID of Icom 2nd device  // This is the CI-V bus serial data channel that we want.
 // There are 2 serial (acm) channels. 2nd is typically GPS NMEA sdata strings from the radio.
-#define EXAMPLE_USB_DEVICE_VID          (0xc26)
-#define EXAMPLE_USB_DEVICE_PID          (0x43) // 2nd device on IC-905
-//#define EXAMPLE_USB_DEVICE_DUAL_VID     (0x451)
-//#define EXAMPLE_USB_DEVICE_DUAL_PID     (0x2046) // 1st device on IC-905
-
-// 3rd icom device is audio codec
-
+// 3rd icom device is audio codec/  TEH ESP can only handle 8 pipes, 4 per serial, channel (one is EP0)
+#if (RADIO_ADDR == IC905)
+  #define USB_DEVICE_VID          (0x0c26)
+  #define USB_DEVICE_PID          (0x0043) // 2nd device on IC-905
+#elif (RADIO_ADDR == IC705)
+  #define USB_DEVICE_VID          (0x0c26)
+  #define USB_DEVICE_PID          (0x0036) // 2nd device on IC-905
+#elif (RADIO_ADDR == IC9700)
+  #define USB_DEVICE_VID          (0x10C4)
+  #define USB_DEVICE_PID          (0xEA60) // 2nd device on IC-905
+#endif
+  
+// Will also look for a 2nd port in case of switching to a dev board.
 // VID and PID for ESP32-S3 dev kit modules running acm device firmware
 //#define EXAMPLE_USB_DEVICE_VID      (0x303A)
 //#define EXAMPLE_USB_DEVICE_PID      (0x4001) // 0x303A:0x4001 (TinyUSB CDC device)
-#define EXAMPLE_USB_DEVICE_DUAL_VID (0x303A)
-#define EXAMPLE_USB_DEVICE_DUAL_PID (0x4001) // 0x303A:0x4002 (TinyUSB Dual CDC device)
+#define USB_DEVICE_DUAL_VID (0x303A)
+#define USB_DEVICE_DUAL_PID (0x4001) // 0x303A:0x4002 (TinyUSB Dual CDC device)
 
 #define EXAMPLE_TX_STRING           ("IC905 PTT Breakout Test String")
 #define EXAMPLE_TX_TIMEOUT_MS       (1000)
@@ -80,7 +88,7 @@
 //#define SEE_RAW_TX // see raw hex messages from radio
 
 struct Bands {
-  char band_name[6];    // Freindly name or label.  Default here but can be changed by user.
+  char band_name[6];    // Friendly name or label.  Default here but can be changed by user.
   uint64_t edge_lower;  // band edge limits for TX and for when to change to next band when tuning up or down.
   uint64_t edge_upper;
   uint64_t Xvtr_offset;  // Offset to add to radio frequency.
@@ -96,3 +104,18 @@ struct Bands {
   uint8_t split;          // Split mode on or off
   uint8_t InputMap;       // If input pattern matches this value, then select this band.  First match wins.
 };
+
+#define M5ATOMS3 11
+//#ifdef ATOMS3
+
+#if defined ( CONFIG_IDF_TARGET_ESP32S3 )
+    #ifdef __M5GFX_M5ATOMDISPLAY__
+      #include <M5Unified.h>  // kills off USB Host
+      //#include <M5AtomS3.h>
+      #define ATOMS3
+    #else 
+      //#include <M5CoreS3.h>   // Mov 2024 latest M5Unified now supports M5CoreS3
+      #include <M5Unified.h>  // kills off USB Host
+    #endif
+#endif
+//#endif

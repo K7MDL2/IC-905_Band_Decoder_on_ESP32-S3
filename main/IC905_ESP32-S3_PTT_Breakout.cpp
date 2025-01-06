@@ -37,13 +37,21 @@
 #include "freertos/event_groups.h"
 #include "driver/gpio.h"
 #include "driver/gpio_filter.h"
+#include "esp_timer.h"
 #include "usb/usb_host.h"
 #include "usb/cdc_acm_host.h"
+
+#define ATOMS3
+
 #include "IC905_ESP32-S3_PTT_Breakout.h"
 #include "Decoder.h"
 #include "CIV.h"
 #include "driver/i2c_master.h"
 #include "ssd1306.h"
+#include "time.h"
+#include <sys/time.h>
+
+
 
 struct Bands bands[NUM_OF_BANDS] = {
   { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
@@ -55,14 +63,18 @@ struct Bands bands[NUM_OF_BANDS] = {
   { "3cm", 10000000000, 10500000000, 0, 10368100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND10G },           // 10GHz
 };
 
-char title[25] = "IC-905 CI-V Band Decoder";
+char title[25] = "IC-905 Band Decoder";
 uint16_t baud_rate;                   //Current baud speed
 uint32_t readtimeout = 10;            //Serial port read timeout
 uint8_t band = BAND_2M;
-//uint16_t background_color = TFT_BLACK;
+#ifdef ATOMS3
+    uint16_t background_color = TFT_BLACK;
+#endif
 bool PTT = false;
 bool prev_PTT = true;
 extern char Grid_Square[];
+extern struct Modes_List modeList[];
+//extern char FilStr;
 extern struct cmdList cmd_List[];
 uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows auto-detect on first messages form radio
 bool auto_address = false;           // If true, detects new radio address on connection mode changes
@@ -91,9 +103,11 @@ void display_Band(uint8_t _band, bool _force);
 void display_Grid(char _grid[], bool _force);
 void SetFreq(uint64_t Freq);
 uint8_t getBand(uint64_t _freq);
+void refesh_display(void);
+void draw_new_screen(void);
 void read_Frequency(uint64_t freq, uint8_t data_len);
 uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]);
-extern void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t rd_buffer[]);
+extern void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 uint8_t pass_PC_to_radio(void);
 extern uint8_t USBHost_ready;  // 0 = not mounted.  1 = mounted, 2 = system not initialized
 bool USBH_connected = false;
@@ -102,11 +116,20 @@ uint64_t frequency;
 extern bool update_radio_settings_flag;
 static const char *TAG = "USB-CDC";
 static SemaphoreHandle_t device_disconnected_sem;
-cdc_acm_dev_hdl_t cdc_dev;
 uint8_t *r = read_buffer;
 bool msg_done_flag;
 bool get_ext_mode_flag = false;
 cdc_acm_dev_hdl_t cdc_dev = NULL;
+uint8_t board_type = 0;
+bool BLE_connected = 0;
+bool btConnected = 0;
+uint8_t brightness = 110;   // 0-255
+uint8_t rotation   = 3;   // 0-3
+struct tm tm;
+time_t t;
+void poll_for_time(void);
+bool init_done = 0;
+bool sending = 0;
 
 // Mask all 12 of our Band and PTT output pins for Output mode
 #define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_BAND_OUTPUT_144 | 1ULL<<GPIO_BAND_OUTPUT_430 \
@@ -152,9 +175,11 @@ static void gpio_PTT_Input(void* arg)
     uint32_t io_num;
     for(;;) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
-            PTT = gpio_get_level(io_num);  // Invert for buffer
-            printf("GPIO[%lu] intr, val: %d\n", io_num, PTT);
-            PTT_Output(band, !PTT);
+            PTT = (uint8_t) gpio_get_level((gpio_num_t) io_num);  // Invert for buffer
+            ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
+            PTT_Output(band, PTT);
+            display_PTT(PTT, false);
+            //refesh_display();
         }
     }
 }
@@ -228,7 +253,6 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
-        //printf("*");
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
@@ -241,13 +265,15 @@ static void usb_lib_task(void *arg)
 static void usb_TX_task(void *arg)
 {
     while (1) {  
-        //printf("+");
         if (get_ext_mode_flag) {
             ESP_LOGI(TAG, "***Get extended mode info from radio");
             sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
             get_ext_mode_flag = false;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
+        refesh_display();
+        vTaskDelay(pdMS_TO_TICKS(10));
+
     }
 }
 
@@ -259,7 +285,7 @@ static void usb_TX_task(void *arg)
         //if (i % 4 == 0) printf(" "); // Group by 4 bits for readability
     }
     bin_num[8] = '\0';
-    //printf("binary is %s\n", bin_num);
+    //ESP_LOGI(TAG,"binary is %s", bin_num);
 }
 
 // ----------------------------------------
@@ -286,17 +312,26 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
     req[msg_len] = STOP_BYTE;
     req[msg_len + 1] = 0;  // null terminate for printing or conversion to String type
 
-    for (uint8_t k = 0; k <= msg_len; k++) {
-        ESP_LOGI("sendCatRequest --> Tx Raw Msg: ", "%X,", req[k]);
-    }
-    ESP_LOGI("sendCatRequest", " msg_len = %d   END", msg_len);
+    #ifdef RAW_TX
+        for (uint8_t k = 0; k <= msg_len; k++) {
+            ESP_LOGI("sendCatRequest --> Tx Raw Msg: ", "%X,", req[k]);
+        }
+        ESP_LOGI("sendCatRequest", " msg_len = %d   END", msg_len);
+    #endif
 
     if (USBH_connected) {
         if (msg_len < sizeof(req) - 1) {  // ensure our data is not longer than our buffer
             //ESP_LOGI("sendCatRequest", "***Send CI-V Msg: ");
-            ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000));
+            int loop_ct = 0;
+            while (sending && loop_ct < 5) {   // In case an overlapping send from IRQ call coes in, wait here until the first one is done.
+                vTaskDelay(pdMS_TO_TICKS(10));    
+                loop_ct++;
+            }
+            loop_ct = 0;
+            sending = 1;
+            ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d  END TX MSG, msg_len = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000), msg_len);
             vTaskDelay(pdMS_TO_TICKS(10));
-            ESP_LOGI("sendCatRequest", " END TX MSG, msg_len = %d", msg_len);
+            sending = 0;
         } 
         else 
         {
@@ -319,7 +354,7 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
 // ----------------------------------------
 void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed frequency, before the radio input, which may have offset applied
     if (frequency > 0) {                   // store frequency per band before it maybe changes bands.  Required to change IF and restore direct after use as an IF.
-        //Serial.printf("read_Frequency: Last Freq %-13llu\n", frequency);
+        //ESP_LOGI(TAG,"read_Frequency: Last Freq %-13llu", frequency);
         if (!update_radio_settings_flag) {   // wait until any XVTR transition complete
         bands[band].VFO_last = frequency;  // store Xvtr or non-Xvtr band displayed frequency per band before it changes.
         prev_band = band;                  // store associated band index
@@ -334,12 +369,13 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         prev_band = band;
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
+        draw_new_screen();
     }
 
     // Use the band to operate our band enable outputs for the 6 905 bands.
     Band_Decode_Output(band);
 
-    //Serial.printf("read_Frequency: Freq %-13llu  band =  %d  Xvtr_Offset = %llu  datalen = %d   btConnected %d   USBH_connected %d   BT_enabled %d   BLE_connected %d  radio_address %X\n", frequency, band, bands[XVTR_Band].Xvtr_offset, data_len, btConnected, USBH_connected, BT_enabled, BLE_connected, radio_address);
+    //ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  Xvtr_Offset = %llu  datalen = %d   btConnected %d   USBH_connected %d   BT_enabled %d   BLE_connected %d  radio_address %X", frequency, band, bands[XVTR_Band].Xvtr_offset, data_len, btConnected, USBH_connected, BT_enabled, BLE_connected, radio_address);
     // On exit from this function we have a new displayed frequency that has XVTR_Offset added, if any.
 }
 
@@ -362,7 +398,7 @@ uint8_t getBand(uint64_t _freq) {
 void SetFreq(uint64_t Freq) {
   uint8_t vfo_dec[7] = {};
   uint8_t len = formatFreq(Freq, vfo_dec);  // Convert to BCD string
-  ESP_LOGI("SetFreq","Set Radio Freq to %llu  Bytes sent to radio (5 or 6 bytes) in BCD: %02X %02X %02X %02X %02X (%02X)\n", Freq, vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5]);
+  ESP_LOGI("SetFreq","Set Radio Freq to %llu  Bytes sent to radio (5 or 6 bytes) in BCD: %02X %02X %02X %02X %02X (%02X)", Freq, vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5]);
   sendCatRequest(CIV_C_F1_SEND, vfo_dec, len);
 }
 
@@ -381,7 +417,7 @@ uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]) {
       vfo_dec[i] = bcdByteEncode((uint8_t)(x));
       vfo = vfo / 100;
     }
-    //Serial.printf(" VFO: < 10G Bands = Reversed hex to DEC byte %02X %02X %02X %02X %02X %02X\n", vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5]);
+    //ESP_LOGI(TAG," VFO: < 10G Bands = Reversed hex to DEC byte %02X %02X %02X %02X %02X %02X", vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5]);
   } else {
     len = 6;
     for (uint8_t i = 0; i < len; i++) {
@@ -389,7 +425,7 @@ uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]) {
       vfo_dec[i] = bcdByteEncode((uint8_t)(x));
       vfo = vfo / 100;
     }
-    //Serial.printf(" VFO: > 10G Bands = Reversed hex to DEC byte %02X %02X %02Xpass_PC_to_radio %02X %02X %02X %02X\n", vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5], vfo_dec[6]);
+    //ESP_LOGI(TAG," VFO: > 10G Bands = Reversed hex to DEC byte %02X %02X %02Xpass_PC_to_radio %02X %02X %02X %02X", vfo_dec[0], vfo_dec[1], vfo_dec[2], vfo_dec[3], vfo_dec[4], vfo_dec[5], vfo_dec[6]);
   }
   return len;  // 5 or 6
 }
@@ -397,7 +433,7 @@ uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]) {
 uint8_t IC_905_Input_scan(void) 
 {
     uint8_t pattern = 0;
-        pattern |= gpio_get_level(GPIO_PTT_INPUT);       // PTT inut from Radio SEND jack  Gnd - TX
+        pattern |= GPIO_PTT_INPUT;       // PTT input from Radio SEND jack  Gnd - TX
     return pattern & 0x01;  // single GPIO pins spare for now
 }
 
@@ -422,12 +458,12 @@ void GPIO_Out(uint8_t pattern)
     printBinaryWithPadding(pattern, bin_num);
     ESP_LOGI("  Band_Decode_Output", "pattern:  DEC=%d    HEX=%X   Binary=%s", pattern, pattern, bin_num);
     // write to the assigned pin for each band enable output port
-    gpio_set_level(GPIO_BAND_OUTPUT_144,  (pattern & 0x01) ? 1 : 0);  // bit 0
-    gpio_set_level(GPIO_BAND_OUTPUT_430,  (pattern & 0x02) ? 1 : 0);  // bit 1
-    gpio_set_level(GPIO_BAND_OUTPUT_1200, (pattern & 0x04) ? 1 : 0);  // bit 2
-    gpio_set_level(GPIO_BAND_OUTPUT_2300, (pattern & 0x08) ? 1 : 0);  // bit 3
-    gpio_set_level(GPIO_BAND_OUTPUT_5600, (pattern & 0x10) ? 1 : 0);  // bit 4
-    gpio_set_level(GPIO_BAND_OUTPUT_10G,  (pattern & 0x20) ? 1 : 0);  // bit 5
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_144,  (pattern & 0x01) ? 1 : 0);  // bit 0
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_430,  (pattern & 0x02) ? 1 : 0);  // bit 1
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_1200, (pattern & 0x04) ? 1 : 0);  // bit 2
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_2300, (pattern & 0x08) ? 1 : 0);  // bit 3
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_5600, (pattern & 0x10) ? 1 : 0);  // bit 4
+    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_10G,  (pattern & 0x20) ? 1 : 0);  // bit 5
 }
 
 void PTT_Output(uint8_t band, bool PTT_state)
@@ -452,12 +488,12 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
     char bin_num[9] ={};
     printBinaryWithPadding(pattern, bin_num);
     ESP_LOGI("GPIO_PTT_Out", "PTT Output Binary %s   PTT Output Hex 0x%02X   PTT Level at CPU pin %d", bin_num, pattern, _PTT_state);
-    gpio_set_level(GPIO_PTT_OUTPUT_144,  (pattern & 0x01 & PTT_state) ? 1 : 0);  // bit 0 HF/50
-    gpio_set_level(GPIO_PTT_OUTPUT_430,  (pattern & 0x02 & PTT_state) ? 1 : 0);  // bit 1 144
-    gpio_set_level(GPIO_PTT_OUTPUT_1200, (pattern & 0x04 & PTT_state) ? 1 : 0);  // bit 2 222
-    gpio_set_level(GPIO_PTT_OUTPUT_2300, (pattern & 0x08 & PTT_state) ? 1 : 0);  // bit 3 432
-    gpio_set_level(GPIO_PTT_OUTPUT_5600, (pattern & 0x10 & PTT_state) ? 1 : 0);  // bit 4 902/903
-    gpio_set_level(GPIO_PTT_OUTPUT_10G,  (pattern & 0x20 & PTT_state) ? 1 : 0);  // bit 5 1296
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_144,  (pattern & 0x01 & PTT_state) ? 1 : 0);  // bit 0 HF/50
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_430,  (pattern & 0x02 & PTT_state) ? 1 : 0);  // bit 1 144
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_1200, (pattern & 0x04 & PTT_state) ? 1 : 0);  // bit 2 222
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_2300, (pattern & 0x08 & PTT_state) ? 1 : 0);  // bit 3 432
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_5600, (pattern & 0x10 & PTT_state) ? 1 : 0);  // bit 4 902/903
+    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_10G,  (pattern & 0x20 & PTT_state) ? 1 : 0);  // bit 5 1296
 }
 
 // --------------------------------------------------
@@ -508,24 +544,24 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                             for (i = 1; i <= cmd_List[cmd_num].cmdData[0]; i++)  // start at the highest and search down. Break out if no match. Make it to the bottom and you have a match
                             {
                                 //ESP_LOGI("processCatMessages", "processCatMessages: byte index = "); DPRINTLN(i);
-                                //Serial.printf("processCatMessages: cmd_num=%d from radio, current byte from radio = %X  next byte=%X, on remote length=%d and cmd=%X\n",cmd_num, read_buffer[3+i], read_buffer[3+i+1], cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[1]);
+                                //ESP_LOGI(TAG,"processCatMessages: cmd_num=%d from radio, current byte from radio = %X  next byte=%X, on remote length=%d and cmd=%X",cmd_num, read_buffer[3+i], read_buffer[3+i+1], cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[1]);
                                 if (cmd_List[cmd_num].cmdData[i] != read_buffer[3 + i]) {
                                 //ESP_LOGI("processCatMessages", "processCatMessages: Skip this one - Matched 1 element: look at next field, if any left. CMD Body Length = ");
-                                //ESP_LOGI("processCatMessages", cmd_List[cmd_num].cmdData[0]); DPRINTF(" CMD  = "); Serial.print(cmd_List[cmd_num].cmdData[i], HEX);DPRINTF(" next RX byte = "); DPRINTLN(read_buffer[3+i+1],HEX);
+                                //ESP_LOGI("processCatMessages", cmd_List[cmd_num].cmdData[0]); DPRINTF(" CMD  = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[i], HEX);DPRINTF(" next RX byte = "); DPRINTLN(read_buffer[3+i+1],HEX);
                                 match = 0;
                                 break;
                                 }
                                 match++;
-                                //ESP_LOGI("processCatMessages", "processCatMessages: Possible Match: Len = "); Serial.print(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); Serial.print(read_buffer[4],HEX);
-                                //ESP_LOGI("processCatMessages", " CMD2  = "); Serial.print(read_buffer[5],HEX); DPRINTF(" Data1/Term  = "); DPRINTLN(read_buffer[6],HEX);
+                                //ESP_LOGI("processCatMessages", "processCatMessages: Possible Match: Len = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); ESP_LOGI(TAG,(read_buffer[4],HEX);
+                                //ESP_LOGI("processCatMessages", " CMD2  = "); ESP_LOGI(TAG,(read_buffer[5],HEX); DPRINTF(" Data1/Term  = "); DPRINTLN(read_buffer[6],HEX);
                             }
 
                             //if (read_buffer[3+i] == STOP_BYTE)  // if the next byte is not a stop byte then it is thge next cmd byte or maybe a data byte, depends on cmd length
 
                             if (match && (match == cmd_List[cmd_num].cmdData[0])) 
                             {
-                                //ESP_LOGI("processCatMessages", "processCatMessages:    FOUND MATCH: Len = "); Serial.print(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); Serial.print(read_buffer[4],HEX);
-                                //ESP_LOGI("processCatMessages", " CMD2  = "); Serial.print(read_buffer[5],HEX);  DPRINTF(" Data1/Term  = "); Serial.print(read_buffer[6],HEX); DPRINTF("  Message Length = "); DPRINTLN(msg_len);
+                                //ESP_LOGI("processCatMessages", "processCatMessages:    FOUND MATCH: Len = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); ESP_LOGI(TAG,(read_buffer[4],HEX);
+                                //ESP_LOGI("processCatMessages", " CMD2  = "); ESP_LOGI(TAG,(read_buffer[5],HEX);  DPRINTF(" Data1/Term  = "); ESP_LOGI(TAG,(read_buffer[6],HEX); DPRINTF("  Message Length = "); DPRINTLN(msg_len);
                                 break;
                             }
                         }
@@ -541,12 +577,12 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
 
                         if (cmd_num >= End_of_Cmd_List - 1) 
                         {
-                            ESP_LOGI("processCatMessages", "processCatMessages: No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X\n", cmd_num, read_buffer[4], read_buffer[5]);
+                            ESP_LOGI("processCatMessages", "processCatMessages: No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X", cmd_num, read_buffer[4], read_buffer[5]);
                             //knowncommand = false;
                         } 
                         else 
                         {
-                            ESP_LOGI("processCatMessages", "Call CIV_Action\n");
+                            ESP_LOGI("processCatMessages", "Call CIV_Action");
                             CIV_Action(cmd_num, data_start_idx, data_len, msg_len, read_buffer);
                         }
                     }  // is controller address
@@ -555,13 +591,290 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
         }        // readline
     }          // while
 }
+
+//
+//    formatVFO()
+//
+char *formatVFO(uint64_t vfo) {
+  static char vfo_str[20] = { "" };
+  //if (ModeOffset < -1 || ModeOffset > 1)
+  //vfo += ModeOffset;  // Account for pitch offset when in CW mode, not others
+
+  uint32_t MHz = (vfo / 1000000 % 1000000);
+  uint16_t Hz = (vfo % 1000) / 10;
+  uint16_t KHz = ((vfo % 1000000) - Hz) / 1000;
+  if (board_type == M5ATOMS3) {
+    sprintf(vfo_str, "%lu.%03u.%01u", MHz, KHz, Hz/10);
+  } else {
+    sprintf(vfo_str, "%lu.%03u.%02u", MHz, KHz, Hz);
+  }
+  ///sprintf(vfo_str, "%-13s", "012345.123.123");  // 999GHZ max  47G = 47000.000.000
+  ///DPRINT("New VFO: ");DPRINTLN(vfo_str);
+  return vfo_str;
+}
+
+void draw_new_screen(void) {
+    int16_t x = 46;  // start position
+    int16_t y = 16;
+    int16_t w = 319;  // end of a line
+    int16_t y1 = y + 13;
+    //int16_t h = 20;
+    int16_t font_sz = 4;  // font size
+    //ESP_LOGI(TAG,"+++++++++draw new screen");
+
+    #ifdef  ATOMS3
+        font_sz = 3;  // downsize for Atom
+        x = 46;  // start position
+        y = 6;
+        w = 127;  // end of a line
+        y1 = 14;   // height of line
+        //h = 12;
+
+        int16_t color = TFT_YELLOW;
+        M5.Lcd.fillScreen(TFT_BLACK);
+        M5.Lcd.setTextColor(TFT_YELLOW, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.setTextDatum(MC_DATUM);
+        //M5.Lcd.drawString("CI-V band Decoder", (int)(M5.Lcd.width() / 2), y, font_sz);
+        M5.Lcd.drawString(title, (int)(M5.Lcd.width() / 2), y, font_sz);
+        M5.Lcd.drawFastHLine(1, y1, w, TFT_RED);  // separator below title
+        M5.Lcd.setTextDatum(MC_DATUM);
+        M5.Lcd.setTextColor(TFT_CYAN, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+    #endif
+    
+    // write the Band and PTT icons
+    display_Freq(frequency, true);
+    display_PTT(PTT, true);
+    display_Band(band, true);  // true means draw the icon regardless of state
+    display_Time(UTC, true);
+    display_Grid(Grid_Square, true);
+}
+
+//  _UTC does nothing now but can be used to change a future clock label
+void display_Time(uint8_t _UTC, bool _force) {
+    static uint64_t time_last_disp_UTC = esp_timer_get_time();
+
+    if ((esp_timer_get_time() >= time_last_disp_UTC + POLL_RADIO_UTC*1000) || _force) {
+        if (USBH_connected) // wait until we are fully running
+            poll_for_time();
+        int x = 10;
+        int x1 = 310;
+        int y = 52;
+        int font_sz = 4;
+
+        #if !defined (M5STAMPC3U) && defined (ATOMS3)
+            if (board_type == M5ATOMS3) {
+                font_sz = 3;  // downsize for Atom
+                x = 1;
+                x1 = 127;
+                y = 25;
+                font_sz = 3;
+            }
+            
+            char temp_t[64] = {};
+            //char *myDate = ctime(&t);   for testing
+            //ESP_LOGI(TAG, "myDate: %s now %lld", myDate, t);
+
+            struct tm local = *localtime(&t);
+            ESP_LOGI(TAG, "Time is now : %02d/%02d/%02d    %02d:%02d:%02d", (local.tm_mon)+1, local.tm_mday, \
+                (local.tm_year+1900), local.tm_hour, local.tm_min, local.tm_sec);
+
+            localtime_r(&t, &tm);
+            
+            //sprintf(temp_t,"%d-%02d-%02d, %02d:%02d:%02d",(tm.tm_year)+1900,(  tm.tm_mon)+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec );
+            //ESP_LOGI("display_Time", "%s", temp_t);      
+            if ((tm.tm_year+1900) != 1970) {   // skip if date not updated yet which shows 1970
+                M5.Lcd.setTextColor(TFT_LIGHTGREY, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+                M5.Lcd.setTextDatum(ML_DATUM);  // x is left side
+                sprintf(temp_t, "%02d/%02d/20%02d", (tm.tm_mon)+1, tm.tm_mday, (tm.tm_year)+1900);
+                M5.Lcd.drawString(temp_t, x, y, font_sz);
+                ESP_LOGI("display_Time","Date is now %s", temp_t);
+                M5.Lcd.setTextDatum(MR_DATUM);  // x1 is right side
+                sprintf(temp_t, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+                M5.Lcd.drawString(temp_t, x1, y, font_sz);
+                ESP_LOGI("display_Time","Time is now %s", temp_t);
+            }
+        #endif
+
+        time_last_disp_UTC = esp_timer_get_time();
+    }
+}
+
+void display_PTT(bool _PTT_state, bool _force) {
+  static bool _prev_PTT_state = true;
+  char PTT_Tx[3] = "TX";
+  int x = 310;
+  int y = 150;
+  int x1 = x - 33;  // upper left corner of outline box
+  int y1 = y - 18;
+  int font_sz = 4;  // font size
+  int w = 38;       // box width
+  int h = 30;       // box height
+  int r = 4;        // box radius corner size
+
+  #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+    M5.Lcd.setTextDatum(MR_DATUM);
+    if (board_type == M5ATOMS3) {
+      font_sz = 3;  // downsize for Atom
+      x = 124;
+      y = 118;
+      x1 = x-16;
+      y1 = y-8; 
+      w = 20;
+      h = 14;
+      r = 4;
+    }
+    
+    if (_PTT_state != _prev_PTT_state || _force) {
+      #ifdef PRINT_PTT_TO_SERIAL
+        ESP_LOGI(TAG, "*********************************************** PTT = %d", _PTT_state);
+      #endif
+      if (_PTT_state) {
+        M5.Lcd.fillRoundRect(x1, y1, w, h, r, TFT_RED);
+        M5.Lcd.setTextColor(TFT_WHITE);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
+      } else {
+        M5.Lcd.fillRoundRect(x1, y1, w, h, r, background_color);
+        M5.Lcd.setTextColor(TFT_RED);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
+      }
+      M5.Lcd.drawRoundRect(x1, y1, w, h, r, TFT_RED);
+      _prev_PTT_state = _PTT_state;
+    }
+  #endif
+}
+
+void display_Freq(uint64_t _freq, bool _force) {
+  static uint64_t _prev_freq;
+  int16_t x = 1;  // start position
+  int16_t y = 104;
+  int16_t font_sz = 6;  // font size
+
+  if ((_freq != _prev_freq && _freq != 0) || _force) {
+    #ifdef PRINT_VFO_TO_SERIAL
+      ESP_LOGI(TAG,"VFOA: %13sMHz - Band: %s  Mode: %s  DataMode: %s  Filter: %s  Source: BLE %d, USBHost %d, BTClassic %d", formatVFO(_freq), bands[band].band_name, \
+          modeList[bands[band].mode_idx].mode_label, ModeStr[bands[band].datamode], FilStr[bands[band].filt], BLE_connected, USBH_connected, btConnected);
+    #endif
+    if (board_type == M5ATOMS3) {
+      font_sz = 4;  // downsize for Atom
+      y = 54;
+    }
+
+    #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+      int16_t color = TFT_WHITE;
+      //M5.Lcd.fillRect(x, y, x1, y1, background_color);
+      M5.Lcd.setTextDatum(MC_DATUM);
+      M5.Lcd.setTextColor(background_color, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.setTextColor(background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.drawString(formatVFO(_prev_freq), (int)(M5.Lcd.width() / 2), y, font_sz);
+      //M5.Lcd.setTextColor(color, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.setTextColor(color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.drawString(formatVFO(_freq), (int)(M5.Lcd.width() / 2), y, font_sz);
+    #endif // M5STAMPC3U
+    _prev_freq = _freq;
+  }
+}
+
+void display_Band(uint8_t _band, bool _force) {
+  static uint8_t _prev_band = 255;
+  int x = 8;
+  int y = 150;
+  int font_sz = 4;
+
+
+  if (_band != _prev_band || _force) {
+    // Update our outputs
+    //Band_Decode_Output(band, false);
+    //sendBand(band);   // change the IO pins to match band
+    //ESP_LOGI(TAG,"Band %s", bands[_band].band_name);
+
+    #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+      if (board_type == M5ATOMS3) {
+        font_sz = 4;  // downsize for Atom
+        x = 1;
+        y= 118;
+      }
+      M5.Lcd.setTextDatum(ML_DATUM);
+      M5.Lcd.setTextDatum(ML_DATUM);
+      M5.Lcd.setTextColor(background_color, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.drawString(bands[_prev_band].band_name, x, y, font_sz);
+      M5.Lcd.setTextColor(TFT_CYAN);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+      M5.Lcd.drawString(bands[_band].band_name, x, y, font_sz);
+    #endif
+
+    if (frequency != 0) {
+      if (!update_radio_settings_flag)
+        #ifdef SD_CARD
+          write_bands_data();  // save on band changes.  Other times would be good bu this catches the most.
+        #else
+        ; // nothing
+        #endif
+      else                   // by this time we should be stable after XVTR transitions
+        update_radio_settings_flag = false;
+    }
+    _prev_band = _band;
+  }
+}
+
+void display_Grid(char _grid[], bool _force) {
+  static char _last_grid[9] = {};
+  int x = 8;
+  int y = 184;
+  int font_sz = 4;
+  // call to convert the strings for Lat and long fronm CIV to floats and then caluclate grid
+  if ((strcmp(_last_grid, _grid)) || _force) {
+    //ESP_LOGI(TAG,"Grid Square = %s",_grid);
+
+    #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+      if (board_type == M5ATOMS3) {
+        font_sz = 4;  // downsize for Atom
+        y = 86;
+        M5.Lcd.setTextDatum(MC_DATUM);
+        M5.Lcd.setTextColor(background_color, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(_last_grid, (int)(M5.Lcd.width() / 2), y, font_sz);
+        M5.Lcd.setTextColor(TFT_DARKGREEN, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(_grid, (int)(M5.Lcd.width() / 2), y, font_sz);
+      } else {
+        M5.Lcd.setTextDatum(ML_DATUM);
+        M5.Lcd.setTextColor(background_color, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(_last_grid, x, y, font_sz);
+        M5.Lcd.setTextColor(TFT_GREEN, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+        M5.Lcd.drawString(_grid, x, y, font_sz);
+      }
+    #endif   
+    strcpy(_last_grid, _grid);
+  }
+}
+
+void poll_for_time(void){
+    if (init_done && !sending) { // && board_type == M5ATOMS3) {
+        /*   Do not need to get UTC offset since it is called at startup and is a global.
+        if (radio_address == IC905)                  //905
+            sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
+        else if (radio_address == IC705)             // 705
+            sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
+        vTaskDelay(2);
+        */
+        ESP_LOGI(TAG, "***Get Time from radio");
+        sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0); 
+        vTaskDelay(pdMS_TO_TICKS(2));
+    }
+}
+
+void refesh_display(void) {
+  display_Time(UTC, false);
+  display_Freq(frequency, false);
+  display_PTT(PTT, false);
+  display_Band(band, false);  // true means draw the icon regardless of state
+  display_Grid(Grid_Square, false);
+}
+
 /*
 void init_OLED(void)
 {
-    Serial.println(F("Start SSD1306 OLED display Init"));
+    ESP_LOGI(TAG,ln("Start SSD1306 OLED display Init"));
     // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
     if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-      Serial.println(F("SSD1306 allocation failed"));
+      ESP_LOGI(TAG,ln("SSD1306 allocation failed"));
       for(;;); // Don't proceed, loop forever
     }
     // Show initial display buffer contents on the screen --
@@ -589,9 +902,9 @@ void setup_IO(void)
     //bit mask of the pins that you want to set,e.g. GPIO_BAND_OUTPUT_144 and GPIO_PTT_OUTPUT_144
     io_conf.pin_bit_mask = GPIO_OUTPUT_PIN_SEL;
     //disable pull-down mode
-    io_conf.pull_down_en = 0;
+    io_conf.pull_down_en = (gpio_pulldown_t) 0;
     //disable pull-up mode
-    io_conf.pull_up_en = 0;
+    io_conf.pull_up_en = (gpio_pullup_t) 0;
     //configure GPIO with the given settings
     gpio_config(&io_conf);
 
@@ -603,7 +916,7 @@ void setup_IO(void)
     //set as input mode
     io_conf.mode = GPIO_MODE_INPUT;
     //enable pull-up mode
-    io_conf.pull_up_en = 1;
+    io_conf.pull_up_en = (gpio_pullup_t) 1;
     gpio_config(&io_conf);
 
     // De-Glitch PTT
@@ -612,7 +925,7 @@ void setup_IO(void)
     //gpio_flex_glitch_filter_config_t filter_config = {GLITCH_FILTER_CLK_SRC_DEFAULT, GPIO_PTT_INPUT, 5000 , 2000};
     //ESP_ERROR_CHECK(gpio_new_flex_glitch_filter(&filter_config, &filter));
     
-    gpio_pin_glitch_filter_config_t filter_config = {GLITCH_FILTER_CLK_SRC_DEFAULT, GPIO_PTT_INPUT};
+    gpio_pin_glitch_filter_config_t filter_config = {GLITCH_FILTER_CLK_SRC_DEFAULT, (gpio_num_t) GPIO_PTT_INPUT};
     ESP_ERROR_CHECK(gpio_new_pin_glitch_filter(&filter_config, &filter));
     
     ESP_ERROR_CHECK(gpio_glitch_filter_enable(filter));
@@ -631,7 +944,7 @@ void setup_IO(void)
     //install gpio isr service
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_PTT_INPUT, gpio_isr_handler, (void*) GPIO_PTT_INPUT);
+    gpio_isr_handler_add((gpio_num_t)GPIO_PTT_INPUT, gpio_isr_handler, (void*) (gpio_num_t) GPIO_PTT_INPUT);
 }
 
 /**
@@ -639,11 +952,33 @@ void setup_IO(void)
  *
  * Here we open a USB CDC device and send some data to it
  */
-void app_main(void)
+int main(void)
 {
     ESP_LOGI(TAG, "IC-905 USB Band Decoder and PTT Breakout - K7MDL Jan 2025");
 
     setup_IO();
+
+    #ifdef CONFIG_IDF_TARGET_ESP32S3
+        #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+        auto cfg = M5.config();
+        M5.begin(cfg);
+        M5.Power.begin();
+        #ifdef ATOMS3
+            ESP_LOGI(TAG,"ATOMS3 defined");
+        #endif
+        board_type = M5.getBoard();
+        if (board_type == M5ATOMS3) {
+        ESP_LOGI(TAG,"AtomS3 ext i2c pins defined");
+        //Wire.begin(2,1);   // M5AtomS3 external i2c
+        M5.Lcd.setRotation(rotation);  // 0 to 3 rotate, 4 to 7 reverse and rotate.
+        M5.Lcd.setBrightness(brightness);   // 0- 255
+        } else {
+        ESP_LOGI(TAG,"CoreS3 or CoreS3SE ext i2C pins defined");
+        //Wire.begin(12,11);   // CoreS3 and ?StampC3U?
+        }
+        draw_new_screen();
+        #endif
+    #endif
 
     // create a new rtos task for main radio control loop -- not in use yet
     BaseType_t TX_task_created = xTaskCreate(usb_TX_task, "usb_TX", 4096, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
@@ -657,12 +992,14 @@ void app_main(void)
     ESP_LOGI(TAG, "Installing USB Host");
     const usb_host_config_t host_config = {
         .skip_phy_setup = false,
+        .root_port_unpowered = false,
         .intr_flags = ESP_INTR_FLAG_LEVEL1,
+        .enum_filter_cb = NULL
     };
     ESP_ERROR_CHECK(usb_host_install(&host_config));
 
     // Create a task that will handle USB library events
-    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
+    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 8092, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
     assert(task_created == pdTRUE);
 
     ESP_LOGI(TAG, "Installing CDC-ACM driver");
@@ -672,20 +1009,20 @@ void app_main(void)
         .connection_timeout_ms = 1000,
         .out_buffer_size = 512,
         .in_buffer_size = 512,
-        .user_arg = NULL,
         .event_cb = handle_event,
-        .data_cb = handle_rx
+        .data_cb = handle_rx,
+        .user_arg = NULL
     };
 
     while (true) {
         //cdc_acm_dev_hdl_t cdc_dev = NULL;
 
         // Open USB device from tusb_serial_device example example. Either single or dual port configuration.
-        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", EXAMPLE_USB_DEVICE_VID, EXAMPLE_USB_DEVICE_PID);
-        esp_err_t err = cdc_acm_host_open(EXAMPLE_USB_DEVICE_VID, EXAMPLE_USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
+        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_VID, USB_DEVICE_PID);
+        esp_err_t err = cdc_acm_host_open(USB_DEVICE_VID, USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
         if (ESP_OK != err) {
-            ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", EXAMPLE_USB_DEVICE_DUAL_VID, EXAMPLE_USB_DEVICE_DUAL_PID);
-            err = cdc_acm_host_open(EXAMPLE_USB_DEVICE_DUAL_VID, EXAMPLE_USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
+            ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID);
+            err = cdc_acm_host_open(USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
             if (ESP_OK != err) {
                 ESP_LOGI(TAG, "Failed to open device");
                 continue;
@@ -719,36 +1056,39 @@ void app_main(void)
 
         // We are done. Wait for device disconnection and start over
         //ESP_LOGI(TAG, "Example finished successfully! You can reconnect the device to run again.");
-
+        
+        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
+        
         USBH_connected = true;
 
         // We can now send to CI-V
-        vTaskDelay(20);  // Time for radio to to beready for comms after connection
+        vTaskDelay(pdMS_TO_TICKS(2));  // Time for radio to to beready for comms after connection
         
         ESP_LOGI(TAG, "***Starting CI-V communications");
-        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
         //SetFreq(145500000);  // Used for testing
-       
+        vTaskDelay(pdMS_TO_TICKS(2));
+        
         ESP_LOGI(TAG, "***Get frequency from radio");
         sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(200));
 
         // Get started by retrieving frequency, mode, time & location and time offset.
         ESP_LOGI(TAG, "***Get extended mode info from radio");
         sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-        vTaskDelay(pdMS_TO_TICKS(2));
-
-        ESP_LOGI(TAG, "***Get UTC Time offset from radio");
+        vTaskDelay(pdMS_TO_TICKS(200));
+        
+        ESP_LOGI(TAG, "***Get UTC Offset from radio");
         if (radio_address == IC905)                  //905
             sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
         else if (radio_address == IC705)             // 705
             sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(200));
         
-        ESP_LOGI(TAG, "***Get time, date and position from radio.  We wil then calculate grid square");
+        ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
         vTaskDelay(pdMS_TO_TICKS(5));
 
+        init_done = 1;
         ESP_LOGI(TAG, "***Now wait for radio dial and band change messaages");
         // usb_TX_task() is where our program runs within now.  
         // handler_rx takes care of received events
@@ -760,4 +1100,5 @@ void app_main(void)
         // program waits here while tasks run handling events
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }
+    return 0;
 }

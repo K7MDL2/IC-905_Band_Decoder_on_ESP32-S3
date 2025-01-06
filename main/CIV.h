@@ -55,7 +55,7 @@ struct position {
 
 static char Latitude[14];    /* size to hold longest values supplied by GPS, assuming 10 plus null for now   */
 static char Longitude[14];
-void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t read_buffer[]);
+void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 void reverse(char *str, int len);
 void ftoa(float n, char *res, int afterpoint);
 int positionToMaidenhead(char m[]);
@@ -172,6 +172,28 @@ struct Modes_List {
     char        mode_label[8];
     uint8_t     filtx;             // bandwidth in HZ - look up matching width in Filter table when changing modes
     uint8_t     data;
+};
+
+// translation of the radio's general mode
+const char ModeStr[3][11] = {
+  "MODE_VOICE",
+  "MODE_DATA",
+  "MODE_NDEF"
+};
+
+const char AgcStr[4][6] = {
+    {"AGC- "},  // 0 reserved for AGC OFF
+    {"AGC-F"},  // 1
+    {"AGC-M"},  // 2
+    {"AGC-S"}   // 3
+};
+
+// clear text translation of the Filter setting
+const char FilStr[4][5] = {
+  "NDEF",
+  "FIL1",   // 1 (1 .. 3 is according to ICOM's documentation)
+  "FIL2",
+  "FIL3"
 };
 
 #endif // CIV.h header file
