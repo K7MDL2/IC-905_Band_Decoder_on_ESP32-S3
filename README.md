@@ -1,5 +1,5 @@
-| Supported Targets | ESP32-S3 |
-| ----------------- | -------- |
+| Supported Targets | ESP32-S3 | M5AtomS3 |
+| ----------------- | -------- | -------- |
 
 Updated January 5, 2025
 
