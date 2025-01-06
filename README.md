@@ -60,6 +60,8 @@ This codes started out with the esp-idf peripherals example for cdc-acm usb host
 
 ## How to use example
 
+Be sure to look at thge Wiki pages https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
+
 Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
 
 You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  On the other run this code.  This code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so will connect with either a radio or the ESP32-S3 DevKit 1 device.   When things are working you will see the debug with the correct frequency and you can put a voltmeter on the board IO pins and see 0V and 3.3V per the pin assignments.
