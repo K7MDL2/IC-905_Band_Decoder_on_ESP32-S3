@@ -3,7 +3,9 @@
 
 Updated January 5, 2025
 
-As development is on progress, changes can happen daily.  See the Development Notes page for latest info on changes and design intent, decisions to be made or done.
+## *** Dev in progress, changes can be daily ***
+
+As development is in progress, changes can happen daily.  See the Development Notes page for latest info on changes and design intent, decisions to be made or done.
 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
