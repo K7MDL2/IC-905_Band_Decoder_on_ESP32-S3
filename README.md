@@ -33,6 +33,11 @@ In a more distant future I may make this work over USB and BLE (Bluetooth Low En
 
 This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with interrupts from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
 
+Here I have code running on a M5AtomsS3 connected to my IC-905.  It has 1 USB-OTG port and IO can be exended with i2c connected modules.  It is easier to develop on a board with 2 USB ports.  The M5Stamp has 1 USB C jack but also has the UART bridge port as pins (D+, D-) on the PCB you can wire to a USB connector and have 2 ports.  This may be the option I go with in the end vs using the AtomS3 or the larger DevKit-1 dual port module. TBD
+
+![20250105_182044](https://github.com/user-attachments/assets/f9c8ed31-90ea-421f-981f-10adf36ac2ac)
+
+
 
 ## How to use
 
