@@ -29,6 +29,9 @@ It provides:
 * 6 PTT outputs for keying amplifiers
 * 1 PTT input (wired to the radio SEND jack)
 
+![20250110_130504](https://github.com/user-attachments/assets/d7b7fba9-d3f7-45c5-aa3e-9a9ae8cdf506)
+
+
 By default each band (there are 6) is configured to operate one Band output pin and 1 PTT output pin in TX.  Also by default the PTT input is pulled high during RX to 3.3VDC and looks for 0V for TX.  A buffer should be used to protect against high voltages > 3.3V. 
 
 The PTT output pin(s) are set to logic 1 (3.3VDC) to operate a buffer which usually inverts the signal thus closing the buffer output to GND, the most common for external amplifiers.  PTT polarity is easily changed in the code if needed. Debouncing the PTT Input is not required since the radio has a transistor SEND output switch so it is clean.  The flex_glitch filter does not apply to the S3 but I did apply the fixed glitch filter (2 clocks).
