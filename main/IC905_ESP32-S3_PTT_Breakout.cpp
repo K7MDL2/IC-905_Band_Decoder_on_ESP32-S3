@@ -2,22 +2,22 @@
  *   IC905_ESP32-S3_PTT_Breakout.cpp
  *   Jan 2025 by K7MDL
  *
- * This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency message #00.
- * For 10GHz and higher the IC-905 adds 1 extra byte thqat must be accounted for to decod the BCD  encoded frequency
- * The last data byte sent for frequency is the MSB.
- * There are other potential messages that contain frequnecy that can be leveraged also.
- * the radio PTT (aka SEND output) is wired into this CPU and monitored.
- * There are 6 PTT and 6 band enable outputs, with status LEDs for each
- * PTT is normally +5V if directly connected to the SEND jack with a weak pullup at the radio and/or at the CPU
- * When PPT = 0 (radio is in TX) then we look at the last frequency seen and send 0 to the matching band's PTT output
+ *  This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency messages.
+ *  For 10GHz and higher the IC-905 adds 1 extra byte thqat must be accounted for to decode the BCD encoded frequency
+ *  The last data byte sent for frequency is the MSB.
+ *  The radio PTT (aka SEND output) is wired into this CPU and monitored.
+ *  There are 6 PTT and 6 band enable outputs, with status LEDs for each
+ *  PTT is normally +5V if directly connected to the SEND jack with a weak pullup at the radio and/or at the CPU
+ *  When PPT = 0 (radio is in TX) then we use the last frequency seen and send 1 to the matching band's PTT output.
+ *  A ULN2803A open collector octal driver buffers the CPU outputs and also inverts so a logic 1 results in closure to GND.
  * 
- *  Future An optional display (OLED likely) for output status, frequency, time from radio, and caclulate 8 or
- *  even 10 digit grid square from thhe radio CIV Time and offset messages as is done in teh 705 and 905 full
- *  band decoder projects for ESP32 and the Teensy 4.   For the 705 3-band transverter box project, I am using
- *  a M5StampC3U with an i2c conencted 0.91" OLED 128x32 and it works well.  This data set requires polling the radio.
+ *  Support for the AtomS3 is enabled by a #define ATOMS3. It has no I/O but has a nice small color LCD that displays
+ *  frequency, time/date from radio, BAND, TX status, location which I caclulate 8 digit grid sqaure from.  
+ *  On bootup the radio is polled for time, location, band/frequency, modem, extended mode.  
+ *  After that it listens for messages only so it does not interfere with future PC to Radio CI_V serial bridging.
  * 
  *  ---------------------------------------------------------------------------------
- * The USB Serial Host part of this program is based on cdc_acm_host ezxample file from 
+ * The USB Serial Host part of this program is based on cdc_acm_host example file from 
  * 
  * SPDX-FileCopyrightText: 2015-2023 Espressif Systems (Shanghai) CO LTD
  *
@@ -152,7 +152,7 @@ static QueueHandle_t gpio_evt_queue = NULL;
 
 /**
  * Brief:
- * This GPIO code configures gpio outputs and gpio interrupt on the PTT GPIO input
+ * This GPIO code configures gpio outputs fro band and PTT and the gpio input interrupt on the PTT input
  *
  * GPIO status:
  * GPIO5 : output
