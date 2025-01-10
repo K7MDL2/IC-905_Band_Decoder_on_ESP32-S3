@@ -23,16 +23,6 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.1.0
-  espressif/ssd1306:
-    component_hash: 102cfc05b1b304862fa3f494e9dd955844bcc5f6cb16596e4ca5df3e6bf9fd0d
-    dependencies:
-    - name: idf
-      require: private
-      version: '>=4.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.0.5~1
   espressif/usb_host_cdc_acm:
     component_hash: f76e1283e7ef0e7970e8a708c4ee443ff0aa112572e25319d30b7ec555cc0aee
     dependencies:
@@ -67,10 +57,9 @@ dependencies:
     version: 0.2.2
 direct_dependencies:
 - espressif/i2c_bus
-- espressif/ssd1306
 - espressif/usb_host_cdc_acm
 - idf
 - m5stack/m5unified
-manifest_hash: eb10121d20d2187907cf0e5b18976b8de86b2672309f49e6d6c89bb6421e9734
+manifest_hash: 774b4f039c6efdffadb60f90d2656180a587da92ba047e249f90eeb80724e4b8
 target: esp32s3
 version: 2.0.0

@@ -1,5 +1,6 @@
 /*
- * IC905_ESP32-S3_PTT_Breakout.cpp
+ *   IC905_ESP32-S3_PTT_Breakout.cpp
+ *   Jan 2025 by K7MDL
  *
  * This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency message #00.
  * For 10GHz and higher the IC-905 adds 1 extra byte thqat must be accounted for to decod the BCD  encoded frequency
@@ -40,18 +41,35 @@
 #include "esp_timer.h"
 #include "usb/usb_host.h"
 #include "usb/cdc_acm_host.h"
+#include "time.h"
+#include <sys/time.h>
+#include "driver/ledc.h"
 
-#define ATOMS3
+//#define ATOMS3
 
 #include "IC905_ESP32-S3_PTT_Breakout.h"
 #include "Decoder.h"
 #include "CIV.h"
-#include "driver/i2c_master.h"
-#include "ssd1306.h"
-#include "time.h"
-#include <sys/time.h>
+#include "LED_Control.h"
 
+//#define USB_PC
 
+#ifdef USB_PC
+    #include "tusb_cdc_acm.h"
+    #include "tinyusb.h"
+    #include "sdkconfig.h"
+    //#define CONFIG_TINYUSB_CDC_RX_BUFSIZE 512
+    static uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
+#endif
+
+void display_Freq(uint64_t _freq, bool _force);
+void display_Time(uint8_t _UTC, bool _force);
+void display_PTT(bool _PTT_state, bool _force);
+void display_Band(uint8_t _band, bool _force);
+void display_Grid(char _grid[], bool _force);
+void SetFreq(uint64_t Freq);
+void poll_for_time(void);
+extern void ledc_init(void);
 
 struct Bands bands[NUM_OF_BANDS] = {
   { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
@@ -77,13 +95,9 @@ extern struct Modes_List modeList[];
 //extern char FilStr;
 extern struct cmdList cmd_List[];
 uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows auto-detect on first messages form radio
-bool auto_address = false;           // If true, detects new radio address on connection mode changes
-                                     // If false, then the last used address, or the preset address is used.
-                                     // If Search for Radio button pushed, then ignores this and looks for new address
-                                     //   then follows rules above when switch connections
 bool use_wired_PTT = WIRED_PTT;           // Selects source of PTT, wired input or polled state from radio.  Wired is preferred, faster.
 uint8_t read_buffer[64];  //Read buffer
-uint8_t prev_band = 0xFF;
+uint8_t prev_band = 0x0;
 uint64_t prev_frequency = 0;
 uint16_t poll_radio_ptt = POLL_PTT_DEFAULT;  // can be changed with detected radio address.
 uint8_t UTC = 1;  // 0 local time, 1 UTC time
@@ -96,12 +110,6 @@ void processCatMessages(const uint8_t *pData, size_t data_len);
 void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t Data_len);  // first byte in Data is length
 void printFrequency(void);
 void read_Frequency(uint64_t freq, uint8_t data_len);
-void display_Freq(uint64_t _freq, bool _force);
-void display_Time(uint8_t _UTC, bool _force);
-void display_PTT(bool _PTT_state, bool _force);
-void display_Band(uint8_t _band, bool _force);
-void display_Grid(char _grid[], bool _force);
-void SetFreq(uint64_t Freq);
 uint8_t getBand(uint64_t _freq);
 void refesh_display(void);
 void draw_new_screen(void);
@@ -127,7 +135,6 @@ uint8_t brightness = 110;   // 0-255
 uint8_t rotation   = 3;   // 0-3
 struct tm tm;
 time_t t;
-void poll_for_time(void);
 bool init_done = 0;
 bool sending = 0;
 
@@ -179,10 +186,84 @@ static void gpio_PTT_Input(void* arg)
             ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
             PTT_Output(band, PTT);
             display_PTT(PTT, false);
+            
+            #ifdef RGB_LED
+                // Set duty to near 0%
+                if (PTT) {
+                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_ON_DUTY));
+                } else {
+                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
+                    // Update duty to apply the new value
+                }
+                ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
+            #else
+                // 100% ON or OFF.  This is too bright so use PWM method preferred
+                gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
+            #endif
+            
             //refesh_display();
         }
     }
 }
+
+#ifdef USB_PC
+    /**
+     * @brief Application Queue
+     */
+    static QueueHandle_t app_queue;
+    typedef struct {
+        uint8_t buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];     // Data buffer
+        size_t buf_len;                                     // Number of bytes received
+        uint8_t itf;                                        // Index of CDC device interface
+    } app_message_t;
+
+    app_message_t msg;
+
+    /**
+     * @brief CDC device RX callback
+     *
+     * CDC device signals, that new data were received
+     *
+     * @param[in] itf   CDC device index
+     * @param[in] event CDC event type
+     */
+    void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
+    {
+        /* initialization */
+        size_t rx_size = 0;
+
+        /* read */
+        esp_err_t ret = tinyusb_cdcacm_read(itf, rx_buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
+        if (ret == ESP_OK) {
+
+            app_message_t tx_msg = {
+                .buf_len = rx_size,
+                .itf = itf,
+            };
+
+            memcpy(tx_msg.buf, rx_buf, rx_size);
+            xQueueSend(app_queue, &tx_msg, 0);
+        } else {
+            ESP_LOGE(TAG, "Read Error");
+        }
+    }
+
+    /**
+     * @brief CDC device line change callback
+     *
+     * CDC device signals, that the DTR, RTS states changed
+     *
+     * @param[in] itf   CDC device index
+     * @param[in] event CDC event type
+     */
+    void tinyusb_cdc_line_state_changed_callback(int itf, cdcacm_event_t *event)
+    {
+        int dtr = event->line_state_changed_data.dtr;
+        int rts = event->line_state_changed_data.rts;
+        ESP_LOGI(TAG, "Line state changed on channel %d: DTR:%d, RTS:%d", itf, dtr, rts);
+    }
+#endif // USB_PC
+
 
 /**
  * @brief Data received callback
@@ -201,6 +282,15 @@ static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
     if (pData[data_len-1] == 0xFD)
     {
         //ESP_LOG_BUFFER_HEXDUMP("handle_rx-1", pData, data_len, ESP_LOG_INFO);
+        
+        #ifdef PC_PASSTHROUGH
+            /* bridge Radio --> PC */
+            tinyusb_cdcacm_write_queue(msg.itf, pData, data_len);
+            esp_err_t err = tinyusb_cdcacm_write_flush(msg.itf, 0);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "CDC ACM write flush error: %s", esp_err_to_name(err));
+            }
+        #endif
         processCatMessages(pData, data_len);
     }
     return true;
@@ -366,10 +456,21 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     
     band = getBand(frequency);
     if (band != prev_band) {
-        prev_band = band;
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
+        
+        // Turn off LED for previous band
+        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
+        // Update duty to apply the new value
+        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
+
+        // light up LED for new band
+        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, LEDC_ON_DUTY));
+        // Update duty to apply the new value
+        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
+        
         draw_new_screen();
+        prev_band = band;
     }
 
     // Use the band to operate our band enable outputs for the 6 905 bands.
@@ -651,96 +752,98 @@ void draw_new_screen(void) {
 
 //  _UTC does nothing now but can be used to change a future clock label
 void display_Time(uint8_t _UTC, bool _force) {
-    static uint64_t time_last_disp_UTC = esp_timer_get_time();
+    #ifdef POLL_FOR_TIME
+        static uint64_t time_last_disp_UTC = esp_timer_get_time();
+        
+        if ((esp_timer_get_time() >= time_last_disp_UTC + POLL_RADIO_UTC*1000) || _force) {
+            if (USBH_connected) // wait until we are fully running
+                poll_for_time();
+            int x = 10;
+            int x1 = 310;
+            int y = 52;
+            int font_sz = 4;
 
-    if ((esp_timer_get_time() >= time_last_disp_UTC + POLL_RADIO_UTC*1000) || _force) {
-        if (USBH_connected) // wait until we are fully running
-            poll_for_time();
-        int x = 10;
-        int x1 = 310;
-        int y = 52;
-        int font_sz = 4;
+            #if !defined (M5STAMPC3U) && defined (ATOMS3)
+                if (board_type == M5ATOMS3) {
+                    font_sz = 3;  // downsize for Atom
+                    x = 1;
+                    x1 = 127;
+                    y = 25;
+                    font_sz = 3;
+                }
+                
+                char temp_t[64] = {};
+                //char *myDate = ctime(&t);   for testing
+                //ESP_LOGI(TAG, "myDate: %s now %lld", myDate, t);
 
-        #if !defined (M5STAMPC3U) && defined (ATOMS3)
-            if (board_type == M5ATOMS3) {
-                font_sz = 3;  // downsize for Atom
-                x = 1;
-                x1 = 127;
-                y = 25;
-                font_sz = 3;
-            }
-            
-            char temp_t[64] = {};
-            //char *myDate = ctime(&t);   for testing
-            //ESP_LOGI(TAG, "myDate: %s now %lld", myDate, t);
+                struct tm local = *localtime(&t);
+                ESP_LOGI(TAG, "Time is now : %02d/%02d/%02d    %02d:%02d:%02d", (local.tm_mon)+1, local.tm_mday, \
+                    (local.tm_year+1900), local.tm_hour, local.tm_min, local.tm_sec);
 
-            struct tm local = *localtime(&t);
-            ESP_LOGI(TAG, "Time is now : %02d/%02d/%02d    %02d:%02d:%02d", (local.tm_mon)+1, local.tm_mday, \
-                (local.tm_year+1900), local.tm_hour, local.tm_min, local.tm_sec);
+                localtime_r(&t, &tm);
+                
+                //sprintf(temp_t,"%d-%02d-%02d, %02d:%02d:%02d",(tm.tm_year)+1900,(  tm.tm_mon)+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec );
+                //ESP_LOGI("display_Time", "%s", temp_t);      
+                if ((tm.tm_year+1900) != 1970) {   // skip if date not updated yet which shows 1970
+                    M5.Lcd.setTextColor(TFT_LIGHTGREY, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+                    M5.Lcd.setTextDatum(ML_DATUM);  // x is left side
+                    sprintf(temp_t, "%02d/%02d/20%02d", (tm.tm_mon)+1, tm.tm_mday, (tm.tm_year)+1900);
+                    M5.Lcd.drawString(temp_t, x, y, font_sz);
+                    ESP_LOGI("display_Time","Date is now %s", temp_t);
+                    M5.Lcd.setTextDatum(MR_DATUM);  // x1 is right side
+                    sprintf(temp_t, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
+                    M5.Lcd.drawString(temp_t, x1, y, font_sz);
+                    ESP_LOGI("display_Time","Time is now %s", temp_t);
+                }
+            #endif
 
-            localtime_r(&t, &tm);
-            
-            //sprintf(temp_t,"%d-%02d-%02d, %02d:%02d:%02d",(tm.tm_year)+1900,(  tm.tm_mon)+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec );
-            //ESP_LOGI("display_Time", "%s", temp_t);      
-            if ((tm.tm_year+1900) != 1970) {   // skip if date not updated yet which shows 1970
-                M5.Lcd.setTextColor(TFT_LIGHTGREY, background_color);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
-                M5.Lcd.setTextDatum(ML_DATUM);  // x is left side
-                sprintf(temp_t, "%02d/%02d/20%02d", (tm.tm_mon)+1, tm.tm_mday, (tm.tm_year)+1900);
-                M5.Lcd.drawString(temp_t, x, y, font_sz);
-                ESP_LOGI("display_Time","Date is now %s", temp_t);
-                M5.Lcd.setTextDatum(MR_DATUM);  // x1 is right side
-                sprintf(temp_t, "%02d:%02d:%02d", tm.tm_hour, tm.tm_min, tm.tm_sec);
-                M5.Lcd.drawString(temp_t, x1, y, font_sz);
-                ESP_LOGI("display_Time","Time is now %s", temp_t);
-            }
-        #endif
-
-        time_last_disp_UTC = esp_timer_get_time();
-    }
+            time_last_disp_UTC = esp_timer_get_time();
+        }
+    #endif
 }
 
 void display_PTT(bool _PTT_state, bool _force) {
-  static bool _prev_PTT_state = true;
-  char PTT_Tx[3] = "TX";
-  int x = 310;
-  int y = 150;
-  int x1 = x - 33;  // upper left corner of outline box
-  int y1 = y - 18;
-  int font_sz = 4;  // font size
-  int w = 38;       // box width
-  int h = 30;       // box height
-  int r = 4;        // box radius corner size
+    static bool _prev_PTT_state = true;
+    char PTT_Tx[3] = "TX";
+    int x = 310;
+    int y = 150;
+    int x1 = x - 33;  // upper left corner of outline box
+    int y1 = y - 18;
+    int font_sz = 4;  // font size
+    int w = 38;       // box width
+    int h = 30;       // box height
+    int r = 4;        // box radius corner size
 
-  #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
-    M5.Lcd.setTextDatum(MR_DATUM);
-    if (board_type == M5ATOMS3) {
-      font_sz = 3;  // downsize for Atom
-      x = 124;
-      y = 118;
-      x1 = x-16;
-      y1 = y-8; 
-      w = 20;
-      h = 14;
-      r = 4;
-    }
-    
-    if (_PTT_state != _prev_PTT_state || _force) {
-      #ifdef PRINT_PTT_TO_SERIAL
-        ESP_LOGI(TAG, "*********************************************** PTT = %d", _PTT_state);
-      #endif
-      if (_PTT_state) {
-        M5.Lcd.fillRoundRect(x1, y1, w, h, r, TFT_RED);
-        M5.Lcd.setTextColor(TFT_WHITE);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
-        M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
-      } else {
-        M5.Lcd.fillRoundRect(x1, y1, w, h, r, background_color);
-        M5.Lcd.setTextColor(TFT_RED);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
-        M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
-      }
-      M5.Lcd.drawRoundRect(x1, y1, w, h, r, TFT_RED);
-      _prev_PTT_state = _PTT_state;
-    }
-  #endif
+    #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
+        M5.Lcd.setTextDatum(MR_DATUM);
+        if (board_type == M5ATOMS3) {
+        font_sz = 3;  // downsize for Atom
+        x = 124;
+        y = 118;
+        x1 = x-16;
+        y1 = y-8; 
+        w = 20;
+        h = 14;
+        r = 4;
+        }
+        
+        if (_PTT_state != _prev_PTT_state || _force) {
+        #ifdef PRINT_PTT_TO_SERIAL
+            ESP_LOGI(TAG, "*********************************************** PTT = %d", _PTT_state);
+        #endif
+        if (_PTT_state) {
+            M5.Lcd.fillRoundRect(x1, y1, w, h, r, TFT_RED);
+            M5.Lcd.setTextColor(TFT_WHITE);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+            M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
+        } else {
+            M5.Lcd.fillRoundRect(x1, y1, w, h, r, background_color);
+            M5.Lcd.setTextColor(TFT_RED);  //Set the color of the text from 0 to 65535, and the background color behind it 0 to 65535
+            M5.Lcd.drawString(PTT_Tx, x, y, font_sz);
+        }
+        M5.Lcd.drawRoundRect(x1, y1, w, h, r, TFT_RED);
+        _prev_PTT_state = _PTT_state;
+        }
+    #endif
 }
 
 void display_Freq(uint64_t _freq, bool _force) {
@@ -868,28 +971,6 @@ void refesh_display(void) {
   display_Grid(Grid_Square, false);
 }
 
-/*
-void init_OLED(void)
-{
-    ESP_LOGI(TAG,ln("Start SSD1306 OLED display Init"));
-    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
-    if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-      ESP_LOGI(TAG,ln("SSD1306 allocation failed"));
-      for(;;); // Don't proceed, loop forever
-    }
-    // Show initial display buffer contents on the screen --
-    // the library initializes this with an Adafruit splash screen.
-    display.display();
-    delay(500);
-    // Clear the buffer
-    display.clearDisplay();
-    // Draw a single pixel in white
-    display.drawPixel(10, 10, SSD1306_WHITE);
-    // Show the display buffer on the screen. You MUST call display() after
-    // drawing commands to make them visible on screen!
-    display.display();
-}
-*/
 void setup_IO(void)
 {   
     // Set up an interrupt on our PTT input pin and set output pins
@@ -952,11 +1033,89 @@ void setup_IO(void)
  *
  * Here we open a USB CDC device and send some data to it
  */
-int main(void)
+//int app_main(void)   // for .c files
+extern "C" void app_main(void)  // for .cpp files
 {
     ESP_LOGI(TAG, "IC-905 USB Band Decoder and PTT Breakout - K7MDL Jan 2025");
 
     setup_IO();
+
+    #ifdef RGB_LED
+        ledc_init();    
+    #else
+        gpio_reset_pin(GPIO_NUM_35);
+        gpio_set_direction(GPIO_NUM_35, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
+        gpio_set_level(GPIO_NUM_35, 1);  // Turn it Off.
+    #endif 
+
+    #ifdef USB_PC
+
+        // Create FreeRTOS primitives
+        app_queue = xQueueCreate(5, sizeof(app_message_t));
+        assert(app_queue);
+        
+        ESP_LOGI(TAG, "USB initialization");
+        const tinyusb_config_t tusb_cfg = {
+            .device_descriptor = NULL,
+            .string_descriptor = NULL,
+            .external_phy = false,
+        #if (TUD_OPT_HIGH_SPEED)
+            .fs_configuration_descriptor = NULL,
+            .hs_configuration_descriptor = NULL,
+            .qualifier_descriptor = NULL,
+        #else
+            .configuration_descriptor = NULL,
+        #endif // TUD_OPT_HIGH_SPEED
+            .self_powered = NULL,                        /*!< This is a self-powered USB device. USB VBUS must be monitored. */
+            .vbus_monitor_io = NULL                       /*!< GPIO for VBUS monitoring. Ignored if not self_powered. */
+        };
+
+        ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
+
+        tinyusb_config_cdcacm_t acm_cfg = {
+            .usb_dev = TINYUSB_USBDEV_0,
+            .cdc_port = TINYUSB_CDC_ACM_0,
+            .rx_unread_buf_sz = 64,
+            .callback_rx = tinyusb_cdc_rx_callback, // the first way to register a callback
+            .callback_rx_wanted_char = NULL,
+            .callback_line_state_changed = NULL,
+            .callback_line_coding_changed = NULL
+        };
+
+        ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
+        /* the second way to register a callback */
+        ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
+                            TINYUSB_CDC_ACM_0,
+                            CDC_EVENT_LINE_STATE_CHANGED,
+                            &tinyusb_cdc_line_state_changed_callback));
+
+        #if (CONFIG_TINYUSB_CDC_COUNT > 1)
+        acm_cfg.cdc_port = TINYUSB_CDC_ACM_1;
+        ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
+        ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
+                            TINYUSB_CDC_ACM_1,
+                            CDC_EVENT_LINE_STATE_CHANGED,
+                            &tinyusb_cdc_line_state_changed_callback));
+        #endif
+
+        ESP_LOGI(TAG, "USB initialization DONE");
+
+        if (xQueueReceive(app_queue, &msg, portMAX_DELAY)) {
+            if (msg.buf_len) {
+
+                /* Print received data*/
+                ESP_LOGI(TAG, "Data from channel %d:", msg.itf);
+                ESP_LOG_BUFFER_HEXDUMP(TAG, msg.buf, msg.buf_len, ESP_LOG_INFO);
+
+                /* write back */
+                tinyusb_cdcacm_write_queue(msg.itf, msg.buf, msg.buf_len);
+                esp_err_t err = tinyusb_cdcacm_write_flush(msg.itf, 0);
+                if (err != ESP_OK) {
+                    ESP_LOGE(TAG, "CDC ACM write flush error: %s", esp_err_to_name(err));
+                }
+            }
+        }
+    #endif
 
     #ifdef CONFIG_IDF_TARGET_ESP32S3
         #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
@@ -1052,7 +1211,7 @@ int main(void)
 
         ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
         ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
-                 line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
+                line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
 
         // We are done. Wait for device disconnection and start over
         //ESP_LOGI(TAG, "Example finished successfully! You can reconnect the device to run again.");
@@ -1088,6 +1247,10 @@ int main(void)
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
         vTaskDelay(pdMS_TO_TICKS(5));
 
+        #ifdef PC_PASSTHROUGH
+            esp_log_level_set("*", ESP_LOG_NONE);
+        #endif
+
         init_done = 1;
         ESP_LOGI(TAG, "***Now wait for radio dial and band change messaages");
         // usb_TX_task() is where our program runs within now.  
@@ -1100,5 +1263,4 @@ int main(void)
         // program waits here while tasks run handling events
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }
-    return 0;
 }

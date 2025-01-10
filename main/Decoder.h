@@ -1,3 +1,8 @@
+/*
+*   Decoder.h
+*   Jan 2025 by K7MDL
+*/
+
 #ifndef DECODER_H_
 #define DECODER_H_
 
@@ -26,21 +31,21 @@ enum band_idx { DUMMY,
 //  PTT is the only IO pin that requires high speed scanning.  
 // *************************************************************************************************************
 
-#define GPIO_PTT_INPUT          1
+#define GPIO_PTT_INPUT          GPIO_NUM_1   // CPU pin 39, default Voltage 0V
 
-#define GPIO_BAND_OUTPUT_144    5
-#define GPIO_BAND_OUTPUT_430    6
-#define GPIO_BAND_OUTPUT_1200   7
-#define GPIO_BAND_OUTPUT_2300   10
-#define GPIO_BAND_OUTPUT_5600   11
-#define GPIO_BAND_OUTPUT_10G    12
+#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5   // CPU pin 5, default Voltage 0V
+#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6   // CPU pin 6, default Voltage 0V
+#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7   // CPU pin 7, default Voltage 0V
+#define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // CPU pin 18, default Voltage 0V
+#define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // CPU pin 19, default Voltage 0V
+#define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // CPU pin 20, default Voltage 0V
 
-#define GPIO_PTT_OUTPUT_144     13
-#define GPIO_PTT_OUTPUT_430     14
-#define GPIO_PTT_OUTPUT_1200    15
-#define GPIO_PTT_OUTPUT_2300    16
-#define GPIO_PTT_OUTPUT_5600    17
-#define GPIO_PTT_OUTPUT_10G     18
+#define GPIO_PTT_OUTPUT_144     GPIO_NUM_13   // CPU pin 21, default Voltage 0V
+#define GPIO_PTT_OUTPUT_430     GPIO_NUM_14   // CPU pin 22, default Voltage 0V
+#define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // CPU pin 8, default Voltage 0V
+#define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // CPU pin 9, default Voltage 0V
+#define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // CPU pin 10, default Voltage 0V
+#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_18   // CPU pin 11, default Voltage 0V
 
 // *************************************************************************************************************
 //

@@ -1,5 +1,6 @@
 /*  
-*  CIV.cpp
+*   CIV.cpp
+*   Jan 2025 by K7MDL
 */
 
 #include <stdio.h>
@@ -515,7 +516,9 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
 
         // This command info lacks data mode status so have to use it to trigger extended mode info
         ESP_LOGI("CIV Mode", "***Set flag to get extended mode data after a mode was message received");
-        get_ext_mode_flag = true;
+        #ifdef GET_EXT_MODE_INFO
+          get_ext_mode_flag = true;
+        #endif
         
         ESP_LOGI("CIV_Action MOD_SEND", "CIV_Action: CI-V Returned Mode: %s", modeList[i].mode_label);  
         ESP_LOGI("CIV_Action MOD_SEND", "  Mode Index: %d", i); 

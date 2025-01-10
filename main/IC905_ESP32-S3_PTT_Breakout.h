@@ -1,6 +1,10 @@
 /*
-* IC905_ESP32-S3_PTT_Breakout.h
+*   IC905_ESP32-S3_PTT_Breakout.h
+*   Jan 2025 by K7MDL
 */
+
+#ifndef _IC905_H_
+#define _IC905_H_
 
 #include <inttypes.h>
 #include "CIV.h"
@@ -9,6 +13,13 @@
 #define IC905 0xAC
 #define IC9700 0xA2
 #define RADIO_ADDR IC905
+
+#define LED_BRIGHT_LEVEL  600   // (0-8091)  Sets all Discrete LEDs brightness level
+//#define GET_EXT_MODE_INFO     // Enable extended mode info poll after normal mode result received.  
+                                // Only used when there is a display and may interfere with WSJT-X
+
+//#define POLL_FOR_TIME         // Polls every 1 second for time and location info from radio
+                                // Only used when there is a display and may interfere with WSJT-X.  
 
 #define WIRED_PTT   1           // 1 = use the wired input for fastest PTT response time
                                 // 0 = poll radio for TX status. Polling delay can be adjusted with parameters below.
@@ -51,12 +62,14 @@
   #undef NO_SEND  // block changes to radio from controller - used for PC pass thru
 #endif
 
+#define RGB_LED  // operate band/PTT status LEDS (likely instead of using a OLED).
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 
 #define EXAMPLE_USB_HOST_PRIORITY   (20)
+//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is IO48
 
 // VID and PID for Icom IC-905 radio - has 2 serial channels and audio codec channel
 // cannot open this device as acm.  Maybe it is the spectrum channel
@@ -118,4 +131,5 @@ struct Bands {
       #include <M5Unified.h>  // kills off USB Host
     #endif
 #endif
-//#endif
+
+#endif // _IC905_H_

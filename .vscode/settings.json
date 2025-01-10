@@ -1,8 +1,8 @@
 {
     "idf.openOcdConfigs": [
-        "board/esp32s3-builtin.cfg"
+        "board/esp32s3-bridge.cfg"
     ],
-    "idf.portWin": "COM14",
+    "idf.portWin": "COM16",
     "idf.flashType": "UART",
     "files.associations": {
         "cdc_acm_host.h": "c",
