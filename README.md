@@ -1,7 +1,7 @@
 | Supported Targets | ESP32-S3 | M5AtomS3 |
 | ----------------- | -------- | -------- |
 
-Updated January 5, 2025
+Updated January 8, 2025
 
 ## *** Dev in progress, changes can be daily ***
 
@@ -11,6 +11,12 @@ https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
 Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
+
+I just received my small aluminum box and have mounted the CPU, 1 of 2 coaxial power jacks and a PTT phono jack at the front panel.  A 15-pin D-Sub and a 2nd coaxial power jack will go on the back panel.  It will pass through 12V to the radio.  Assuming the box is attachged to the back or top of the radio control head, on the front of the box will be 3 short cables that can stay permanently attached to the radio, all around 6" - USB, 12V and SEND.  ON teh back wil be radio 12V and 6Band outputs and 6 PTT outputs, 1 PTT input and GND.  Maybe 5V also.
+
+Inside is a ESP32-S3-DevKitC-1, 5V regulator, 2 ULN2803A drivers and either a 128x32 OLED, or 8 LEDs (6 band indicators, 1 PTT in) and 1 for power.  The band LED would flash when PTT active on that band.
+
+I am also working on bridging PC to Radio CI-V messages between the 2 USB ports.  It it can be used for logging.  IF audio is needed then you can run wfView or RS-BA1 and use the LAN.  I am also working on adding in the SSD1306 OLED code.   In parallel I am waiting on parts to finish my IC-705 transverter box project, chipping away at some small tasks on that.
 
 
 
