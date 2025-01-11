@@ -9,6 +9,10 @@ As development is in progress, changes can happen daily.  See the Development No
 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
+The prototype construction is documented on this page.
+
+https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Prototype-Construction
+
 Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
