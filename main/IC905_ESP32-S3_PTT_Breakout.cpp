@@ -44,6 +44,9 @@
 #include "time.h"
 #include <sys/time.h>
 #include "driver/ledc.h"
+//#include "driver/adc.h"
+//#include "esp_adc_cal.h"
+//#include "adc_continuous.h"
 
 //#define ATOMS3
 
@@ -111,7 +114,7 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
 void printFrequency(void);
 void read_Frequency(uint64_t freq, uint8_t data_len);
 uint8_t getBand(uint64_t _freq);
-void refesh_display(void);
+void refresh_display(void);
 void draw_new_screen(void);
 void read_Frequency(uint64_t freq, uint8_t data_len);
 uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]);
@@ -137,16 +140,22 @@ struct tm tm;
 time_t t;
 bool init_done = 0;
 bool sending = 0;
+//esp_adc_cal_characteristics_t adc1_chars;
+uint32_t voltage;
 
-// Mask all 12 of our Band and PTT output pins for Output mode
-#define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_BAND_OUTPUT_144 | 1ULL<<GPIO_BAND_OUTPUT_430 \
-    | 1ULL<<GPIO_BAND_OUTPUT_1200 | 1ULL<<GPIO_BAND_OUTPUT_2300 | 1ULL<<GPIO_BAND_OUTPUT_5600 | 1ULL<<GPIO_BAND_OUTPUT_10G \
-    | 1ULL<<GPIO_PTT_OUTPUT_144 | 1ULL<<GPIO_PTT_OUTPUT_430 | 1ULL<<GPIO_PTT_OUTPUT_1200 \
-    | 1ULL<<GPIO_PTT_OUTPUT_2300 | 1ULL<<GPIO_PTT_OUTPUT_5600 | 1ULL<<GPIO_PTT_OUTPUT_10G)
+// Mask all 12 of our Band and PTT output pins for Output mode, also our 8 LED output pins
+#define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
+                            | 1ULL<<GPIO_BAND_OUTPUT_2300 | 1ULL<<GPIO_BAND_OUTPUT_5600 | 1ULL<<GPIO_BAND_OUTPUT_10G  \
+                            | 1ULL<<GPIO_PTT_OUTPUT_144   | 1ULL<<GPIO_PTT_OUTPUT_430   | 1ULL<<GPIO_PTT_OUTPUT_1200  \
+                            | 1ULL<<GPIO_PTT_OUTPUT_2300  | 1ULL<<GPIO_PTT_OUTPUT_5600  | 1ULL<<GPIO_PTT_OUTPUT_10G   \
+                            | 1ULL<<LEDC_OUTPUT_144_IO    | 1ULL<<LEDC_OUTPUT_430_IO    | 1ULL<<LEDC_OUTPUT_1200_IO   \
+                            | 1ULL<<LEDC_OUTPUT_2300_IO   | 1ULL<<LEDC_OUTPUT_5600_IO   | 1ULL<<LEDC_OUTPUT_10G_IO    \
+                            | 1ULL<<LEDC_OUTPUT_PWR_ON_IO | 1ULL<<LEDC_PTT_IN_OUTPUT_IO);
 
 // Mask our 1 PTT input IO pin for Input with pull up. An interrupt wil be assigned to this pin.
 #define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_PTT_INPUT)
 #define ESP_INTR_FLAG_DEFAULT 0
+#define LED_DIMMER_ADJ_PIN 8  // 8 and 9 are used for i2c. If using LEDs then OLED is not connected, these are free as gpio
 
 static QueueHandle_t gpio_evt_queue = NULL;
 
@@ -201,7 +210,7 @@ static void gpio_PTT_Input(void* arg)
                 gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
             #endif
             
-            //refesh_display();
+            //refresh_display();
         }
     }
 }
@@ -361,9 +370,11 @@ static void usb_TX_task(void *arg)
             get_ext_mode_flag = false;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
-        refesh_display();
+        refresh_display();
         vTaskDelay(pdMS_TO_TICKS(10));
-
+        //voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(ADC1_CHANNEL_2), &adc1_chars);
+        //ESP_LOGI(TAG, "ADC1_CHANNEL_2: %lu mV", voltage);
+        //vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -459,17 +470,20 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
         
-        // Turn off LED for previous band
-        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
-        // Update duty to apply the new value
-        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
+        #ifdef RGB_LED
+            // Turn off LED for previous band
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
+            // Update duty to apply the new value
+            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
 
-        // light up LED for new band
-        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, LEDC_ON_DUTY));
-        // Update duty to apply the new value
-        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
-        
-        draw_new_screen();
+            // light up LED for new band
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, LEDC_ON_DUTY));
+            // Update duty to apply the new value
+            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
+        #else
+            draw_new_screen();
+        #endif
+
         prev_band = band;
     }
 
@@ -490,7 +504,7 @@ uint8_t getBand(uint64_t _freq) {
       return i;
     }
   }
-  return 0xFF;  // no band for considered frequency found
+  return 0x00;  // no band for considered frequency found
 }
 
 // Send new frequency to radio, radio will change bands as needed.
@@ -559,12 +573,12 @@ void GPIO_Out(uint8_t pattern)
     printBinaryWithPadding(pattern, bin_num);
     ESP_LOGI("  Band_Decode_Output", "pattern:  DEC=%d    HEX=%X   Binary=%s", pattern, pattern, bin_num);
     // write to the assigned pin for each band enable output port
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_144,  (pattern & 0x01) ? 1 : 0);  // bit 0
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_430,  (pattern & 0x02) ? 1 : 0);  // bit 1
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_1200, (pattern & 0x04) ? 1 : 0);  // bit 2
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_2300, (pattern & 0x08) ? 1 : 0);  // bit 3
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_5600, (pattern & 0x10) ? 1 : 0);  // bit 4
-    gpio_set_level((gpio_num_t) GPIO_BAND_OUTPUT_10G,  (pattern & 0x20) ? 1 : 0);  // bit 5
+    gpio_set_level(GPIO_BAND_OUTPUT_144,  (pattern & 0x01) ? 1 : 0);  // bit 0
+    gpio_set_level(GPIO_BAND_OUTPUT_430,  (pattern & 0x02) ? 1 : 0);  // bit 1
+    gpio_set_level(GPIO_BAND_OUTPUT_1200, (pattern & 0x04) ? 1 : 0);  // bit 2
+    gpio_set_level(GPIO_BAND_OUTPUT_2300, (pattern & 0x08) ? 1 : 0);  // bit 3
+    gpio_set_level(GPIO_BAND_OUTPUT_5600, (pattern & 0x10) ? 1 : 0);  // bit 4
+    gpio_set_level(GPIO_BAND_OUTPUT_10G,  (pattern & 0x20) ? 1 : 0);  // bit 5
 }
 
 void PTT_Output(uint8_t band, bool PTT_state)
@@ -589,12 +603,12 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
     char bin_num[9] ={};
     printBinaryWithPadding(pattern, bin_num);
     ESP_LOGI("GPIO_PTT_Out", "PTT Output Binary %s   PTT Output Hex 0x%02X   PTT Level at CPU pin %d", bin_num, pattern, _PTT_state);
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_144,  (pattern & 0x01 & PTT_state) ? 1 : 0);  // bit 0 HF/50
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_430,  (pattern & 0x02 & PTT_state) ? 1 : 0);  // bit 1 144
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_1200, (pattern & 0x04 & PTT_state) ? 1 : 0);  // bit 2 222
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_2300, (pattern & 0x08 & PTT_state) ? 1 : 0);  // bit 3 432
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_5600, (pattern & 0x10 & PTT_state) ? 1 : 0);  // bit 4 902/903
-    gpio_set_level((gpio_num_t) GPIO_PTT_OUTPUT_10G,  (pattern & 0x20 & PTT_state) ? 1 : 0);  // bit 5 1296
+    gpio_set_level(GPIO_PTT_OUTPUT_144,  (pattern & 0x01 & PTT_state) ? 1 : 0);  // bit 0 144
+    gpio_set_level(GPIO_PTT_OUTPUT_430,  (pattern & 0x02 & PTT_state) ? 1 : 0);  // bit 1 430
+    gpio_set_level(GPIO_PTT_OUTPUT_1200, (pattern & 0x04 & PTT_state) ? 1 : 0);  // bit 2 1200
+    gpio_set_level(GPIO_PTT_OUTPUT_2300, (pattern & 0x08 & PTT_state) ? 1 : 0);  // bit 3 2300
+    gpio_set_level(GPIO_PTT_OUTPUT_5600, (pattern & 0x10 & PTT_state) ? 1 : 0);  // bit 4 5600
+    gpio_set_level(GPIO_PTT_OUTPUT_10G,  (pattern & 0x20 & PTT_state) ? 1 : 0);  // bit 5 10G
 }
 
 // --------------------------------------------------
@@ -963,12 +977,14 @@ void poll_for_time(void){
     }
 }
 
-void refesh_display(void) {
-  display_Time(UTC, false);
-  display_Freq(frequency, false);
-  display_PTT(PTT, false);
-  display_Band(band, false);  // true means draw the icon regardless of state
-  display_Grid(Grid_Square, false);
+void refresh_display(void) {
+    display_Freq(frequency, false);
+    #ifndef RGB_LED
+        display_Time(UTC, false);
+        display_PTT(PTT, false);
+        display_Band(band, false);  // true means draw the icon regardless of state
+        display_Grid(Grid_Square, false);
+    #endif  // If we have LEDs then we likey have no screen to draw.
 }
 
 void setup_IO(void)
@@ -1026,6 +1042,18 @@ void setup_IO(void)
     gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
     //hook isr handler for specific gpio pin
     gpio_isr_handler_add((gpio_num_t)GPIO_PTT_INPUT, gpio_isr_handler, (void*) (gpio_num_t) GPIO_PTT_INPUT);
+
+    // Set up ADC for LED brightness dimming
+    //esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);  // calibrate ADC1
+    //ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
+    //ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_2, ADC_ATTEN_DB_11));
+
+    //adc_continuous_handle_t handle = NULL;
+    //adc_continuous_handle_cfg_t adc_config = {
+    //    .max_store_buf_size = 1024,
+    //    .conv_frame_size = 256,
+    //};
+    //ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &handle));
 }
 
 /**
@@ -1212,10 +1240,7 @@ extern "C" void app_main(void)  // for .cpp files
         ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
         ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
                 line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
-
-        // We are done. Wait for device disconnection and start over
-        //ESP_LOGI(TAG, "Example finished successfully! You can reconnect the device to run again.");
-        
+      
         ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
         
         USBH_connected = true;
@@ -1259,7 +1284,9 @@ extern "C" void app_main(void)  // for .cpp files
         // Incoming CIV data appears in handler_rx whih in turn calls process messages and CIV_Action. 
         // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
         // or read frequency() calling get ext mode, set a flag and let usb_TX_task() handle it.
-
+        
+        // We are done.  The tasks are running things now. Wait for device disconnection and start over
+        
         // program waits here while tasks run handling events
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }

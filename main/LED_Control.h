@@ -14,19 +14,20 @@
 #ifdef RGB_LED
 
     #define LED_TIMER_BAND          LEDC_TIMER_0  // low duty cycle (dim) Band enabled
-    #define LED_TIMER_FLASH         LEDC_TIMER_1  // Flash cadence used for when PTT is active.
+    #define LED_TIMER_PWR_ON         LEDC_TIMER_1  // Flash cadence used for when PTT is active.
 
     #define LEDC_MODE               LEDC_LOW_SPEED_MODE
 
-    #define LEDC_PTT_IN_OUTPUT_IO      (48)     // Onboard RGB LED for testing
-    //#define LEDC_PTT_IN_OUTPUT_IO      (35)     // PCB LED for PTT IN
-    #define LEDC_OUTPUT_144_IO         (36)     // band 144 Active - Flash for PTT active on this band
-    #define LEDC_OUTPUT_430_IO         (37)     // Skipping pin 38 as some boards use it for the internal RGB
-    #define LEDC_OUTPUT_1200_IO        (39)
-    #define LEDC_OUTPUT_2300_IO        (40)
-    #define LEDC_OUTPUT_5600_IO        (41)
-    #define LEDC_OUTPUT_10G_IO         (42)
-    #define LEDC_OUTPUT_PWR_ON_IO      (47)
+    // 45, 46, 0 and 3 are "strapping pins"  
+    //#define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_48)     // Onboard RGB LED for testing
+    #define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_47)     // PCB LED for PTT IN
+    #define LEDC_OUTPUT_144_IO         (GPIO_NUM_35)     // band 144 Active - Flash for PTT active on this band
+    #define LEDC_OUTPUT_430_IO         (GPIO_NUM_37)     // Skipping pin 38 as some boards use it for the internal RGB
+    #define LEDC_OUTPUT_1200_IO        (GPIO_NUM_39)
+    #define LEDC_OUTPUT_2300_IO        (GPIO_NUM_41)
+    #define LEDC_OUTPUT_5600_IO        (GPIO_NUM_2)
+    #define LEDC_OUTPUT_10G_IO         (GPIO_NUM_42)
+    #define LEDC_OUTPUT_PWR_ON_IO      (GPIO_NUM_40)     // 43 and 44 are UART0 pins
 
     #define LEDC_PTT_IN_OUTPUT_CH      (LEDC_CHANNEL_0)  // PTT Input
     #define LEDC_OUTPUT_144_CH         (LEDC_CHANNEL_1)  // band 144 Active - Flash for PTT active on this band

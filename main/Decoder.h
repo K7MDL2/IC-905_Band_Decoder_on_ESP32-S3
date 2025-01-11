@@ -29,23 +29,26 @@ enum band_idx { DUMMY,
 // Make IO Pin assignments here. 
 //  These are IO pins on the CPU module intended for Band decode input and PTT input and IF switch control
 //  PTT is the only IO pin that requires high speed scanning.  
+//  Skipping gpio pins 8 and 9 for future i2c use
 // *************************************************************************************************************
 
-#define GPIO_PTT_INPUT          GPIO_NUM_1   // CPU pin 39, default Voltage 0V
+#define GPIO_PTT_INPUT          GPIO_NUM_1   // 
 
-#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5   // CPU pin 5, default Voltage 0V
-#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6   // CPU pin 6, default Voltage 0V
-#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7   // CPU pin 7, default Voltage 0V
-#define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // CPU pin 18, default Voltage 0V
-#define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // CPU pin 19, default Voltage 0V
-#define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // CPU pin 20, default Voltage 0V
+// gpio pins 0, 3, 45, and 46 are CPU option "strapping pins" and should not be used
+// pin 8 is open as ADC1_ch2  for the brightness pot
+#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // default Voltage 0V
 
-#define GPIO_PTT_OUTPUT_144     GPIO_NUM_13   // CPU pin 21, default Voltage 0V
-#define GPIO_PTT_OUTPUT_430     GPIO_NUM_14   // CPU pin 22, default Voltage 0V
-#define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // CPU pin 8, default Voltage 0V
-#define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // CPU pin 9, default Voltage 0V
-#define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // CPU pin 10, default Voltage 0V
-#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_18   // CPU pin 11, default Voltage 0V
+#define GPIO_PTT_OUTPUT_144     GPIO_NUM_13   // default Voltage 0V
+#define GPIO_PTT_OUTPUT_430     GPIO_NUM_14   // default Voltage 0V
+#define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // default Voltage 0V
+#define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // default Voltage 0V
+#define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // Also UART1 TX (not used)
+#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_18   // Also UART1 RX (not used)
 
 // *************************************************************************************************************
 //

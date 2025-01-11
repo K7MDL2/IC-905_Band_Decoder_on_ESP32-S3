@@ -14,7 +14,8 @@
 #define IC9700 0xA2
 #define RADIO_ADDR IC905
 
-#define LED_BRIGHT_LEVEL  600   // (0-8091)  Sets all Discrete LEDs brightness level
+#define LED_BRIGHT_LEVEL  1200   // (0-8091)  Sets all Discrete LEDs brightness level
+
 //#define GET_EXT_MODE_INFO     // Enable extended mode info poll after normal mode result received.  
                                 // Only used when there is a display and may interfere with WSJT-X
 
@@ -78,13 +79,13 @@
 // 3rd icom device is audio codec/  TEH ESP can only handle 8 pipes, 4 per serial, channel (one is EP0)
 #if (RADIO_ADDR == IC905)
   #define USB_DEVICE_VID          (0x0c26)
-  #define USB_DEVICE_PID          (0x0043) // 2nd device on IC-905
+  #define USB_DEVICE_PID          (0x0043) // IC-905
 #elif (RADIO_ADDR == IC705)
   #define USB_DEVICE_VID          (0x0c26)
-  #define USB_DEVICE_PID          (0x0036) // 2nd device on IC-905
+  #define USB_DEVICE_PID          (0x0036) // IC-705
 #elif (RADIO_ADDR == IC9700)
   #define USB_DEVICE_VID          (0x10C4)
-  #define USB_DEVICE_PID          (0xEA60) // 2nd device on IC-905
+  #define USB_DEVICE_PID          (0xEA60) // IC-9700
 #endif
   
 // Will also look for a 2nd port in case of switching to a dev board.
