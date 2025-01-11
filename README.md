@@ -1,7 +1,7 @@
 | Supported Targets | ESP32-S3 | M5AtomS3 |
 | ----------------- | -------- | -------- |
 
-Updated January 9, 2025
+Updated January 11, 2025
 
 ## *** Dev in progress, changes can be daily ***
 
@@ -12,7 +12,9 @@ https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
-Removed all (unfinished) OLED code and added 8 LED PWM pins for 8 LEDs.  Power ON, PTT IN, and 6 Band LEDs.  Each Band LED will (eventually) flash when that PTT is active.  The PWM allows for easily configurable brightness.  Now wiring up the 8 LEDs.
+Added ADC code to read LED brightness adjustment pot position for easy field adjustment.
+
+Jan 9 2025: Removed all (unfinished) OLED code and added 8 LED PWM pins for 8 LEDs.  Power ON, PTT IN, and 6 Band LEDs.  Each Band LED will (eventually) flash when that PTT is active.  The PWM allows for easily configurable brightness.  Now wiring up the 8 LEDs.
 
 Jan 8 2025: I just received my small aluminum box and have mounted the CPU, 1 of 2 coaxial power jacks and a PTT phono jack at the front panel.  A 15-pin D-Sub and a 2nd coaxial power jack will go on the back panel.  It will pass through 12V to the radio.  Assuming the box is attachged to the back or top of the radio control head, on the front of the box will be 3 short cables that can stay permanently attached to the radio, all around 6" - USB, 12V and SEND.  ON teh back wil be radio 12V and 6Band outputs and 6 PTT outputs, 1 PTT input and GND.  Maybe 5V also.
 

@@ -14,7 +14,7 @@
 #define IC9700 0xA2
 #define RADIO_ADDR IC905
 
-#define LED_BRIGHT_LEVEL  1200   // (0-8091)  Sets all Discrete LEDs brightness level
+#define LED_BRIGHT_LEVEL  600   // (0-4094) for 10bit, 8190 for 13 bit res.  Sets all Discrete LEDs brightness level
 
 //#define GET_EXT_MODE_INFO     // Enable extended mode info poll after normal mode result received.  
                                 // Only used when there is a display and may interfere with WSJT-X
@@ -63,14 +63,14 @@
   #undef NO_SEND  // block changes to radio from controller - used for PC pass thru
 #endif
 
-#define RGB_LED  // operate band/PTT status LEDS (likely instead of using a OLED).
+#define USE_LEDS  // operate band/PTT status LEDS (likely instead of using a OLED).
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 32 // OLED display height, in pixels
 
-#define EXAMPLE_USB_HOST_PRIORITY   (20)
-//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is IO48
+#define USB_HOST_PRIORITY   (20)
+//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is GPIO48
 
 // VID and PID for Icom IC-905 radio - has 2 serial channels and audio codec channel
 // cannot open this device as acm.  Maybe it is the spectrum channel
@@ -95,11 +95,15 @@
 #define USB_DEVICE_DUAL_VID (0x303A)
 #define USB_DEVICE_DUAL_PID (0x4001) // 0x303A:0x4002 (TinyUSB Dual CDC device)
 
-#define EXAMPLE_TX_STRING           ("IC905 PTT Breakout Test String")
-#define EXAMPLE_TX_TIMEOUT_MS       (1000)
+#define TX_STRING           ("IC905 PTT Breakout Test String")
+#define TX_TIMEOUT_MS       (1000)
 
 //#define SEE_RAW_RX // see raw hex messages from radio
 //#define SEE_RAW_TX // see raw hex messages from radio
+
+// For ADC to read the LED brightness pot
+#define ADC1_CHAN0          ADC_CHANNEL_7
+#define ADC_ATTEN           ADC_ATTEN_DB_12
 
 struct Bands {
   char band_name[6];    // Friendly name or label.  Default here but can be changed by user.

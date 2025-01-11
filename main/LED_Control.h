@@ -9,14 +9,15 @@
 #include "IC905_ESP32-S3_PTT_Breakout.h"
 #include "driver/ledc.h"
 
-//#define RGB_LED  // use PWM mode to dim bright onboard LED. If undefined then gpio_set_level used, very bright though!
+// use PWM mode to dim bright onboard LED. If USE_LEDS is undefined then gpio_set_level used, very bright though!
 
-#ifdef RGB_LED
+#ifdef USE_LEDS
 
-    #define LED_TIMER_BAND          LEDC_TIMER_0  // low duty cycle (dim) Band enabled
-    #define LED_TIMER_PWR_ON         LEDC_TIMER_1  // Flash cadence used for when PTT is active.
-
-    #define LEDC_MODE               LEDC_LOW_SPEED_MODE
+    #define LED_TIMER_PTT               LEDC_TIMER_0  // Flash cadence used for when PTT is active.
+    #define LED_TIMER_PWR_ON            LEDC_TIMER_1  // Flash cadence used for when PTT is active.
+    #define LED_TIMER_BAND              LEDC_TIMER_2  // low duty cycle (dim) Band enabled
+    
+    #define LEDC_MODE                   LEDC_LOW_SPEED_MODE
 
     // 45, 46, 0 and 3 are "strapping pins"  
     //#define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_48)     // Onboard RGB LED for testing
@@ -38,8 +39,8 @@
     #define LEDC_OUTPUT_10G_CH         (LEDC_CHANNEL_6)
     #define LEDC_OUTPUT_PWR_ON_CH      (LEDC_CHANNEL_7)
 
-    #define LEDC_DUTY_RES              LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
-    #define LEDC_ON_DUTY               (LED_BRIGHT_LEVEL) // 50% is: (2 ** 13) * 50% = 4096.  Higher is brighter
+    #define LEDC_DUTY_RES              LEDC_TIMER_12_BIT // Set duty resolution to 12 bits.  2 ** 12) = 4096.  Duty cycle is 2x duty res so 8192
+    #define LEDC_ON_DUTY               (LED_BRIGHT_LEVEL) // for 13 bit 50% is: (2 ** 13) * 50% = 4096.  Higher is brighter
     #define LEDC_OFF_DUTY              (0) // Set duty to 0%. (2 ** 13) * 50% = 4096.  Higher is brighter
     #define LEDC_FREQUENCY             (4000) // Frequency in Hertz. Set frequency at 4 kHz
 
@@ -50,5 +51,6 @@
     */
 
     void ledc_init(void);
+    void led_brightness(void);
 
 #endif

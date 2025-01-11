@@ -44,9 +44,9 @@
 #include "time.h"
 #include <sys/time.h>
 #include "driver/ledc.h"
-//#include "driver/adc.h"
-//#include "esp_adc_cal.h"
-//#include "adc_continuous.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 //#define ATOMS3
 
@@ -65,6 +65,7 @@
     static uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
 #endif
 
+// Our own functions
 void display_Freq(uint64_t _freq, bool _force);
 void display_Time(uint8_t _UTC, bool _force);
 void display_PTT(bool _PTT_state, bool _force);
@@ -72,7 +73,6 @@ void display_Band(uint8_t _band, bool _force);
 void display_Grid(char _grid[], bool _force);
 void SetFreq(uint64_t Freq);
 void poll_for_time(void);
-extern void ledc_init(void);
 
 struct Bands bands[NUM_OF_BANDS] = {
   { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
@@ -140,8 +140,17 @@ struct tm tm;
 time_t t;
 bool init_done = 0;
 bool sending = 0;
-//esp_adc_cal_characteristics_t adc1_chars;
-uint32_t voltage;
+static int adc_raw[1][10];
+static int voltage[1][10];
+static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
+static void adc_calibration_deinit(adc_cali_handle_t handle);
+adc_cali_handle_t adc1_cali_chan0_handle = NULL;
+bool do_calibration1_chan0 = adc_calibration_init(ADC_UNIT_1, ADC1_CHAN0, ADC_ATTEN, &adc1_cali_chan0_handle);
+adc_oneshot_unit_handle_t adc1_handle;
+adc_oneshot_unit_init_cfg_t init_config1 = {
+    .unit_id = ADC_UNIT_1,
+};
+uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 
 // Mask all 12 of our Band and PTT output pins for Output mode, also our 8 LED output pins
 #define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
@@ -196,21 +205,21 @@ static void gpio_PTT_Input(void* arg)
             PTT_Output(band, PTT);
             display_PTT(PTT, false);
             
-            #ifdef RGB_LED
-                // Set duty to near 0%
+            #ifdef USE_LEDS  // toggle PTT LED
                 if (PTT) {
-                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_ON_DUTY));
+                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
+                    //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
                 } else {
                     ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
-                    // Update duty to apply the new value
+                    //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
                 }
+                // Update duty to apply the new value
                 ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
             #else
                 // 100% ON or OFF.  This is too bright so use PWM method preferred
                 gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
+                refresh_display();
             #endif
-            
-            //refresh_display();
         }
     }
 }
@@ -357,11 +366,11 @@ static void usb_lib_task(void *arg)
 }
 
 /**
- * @brief USB Host Radio TX queue handling task
+ * @brief USB Host Radio TX message send and idle loop task
  *
  * @param arg Unused
  */
-static void usb_TX_task(void *arg)
+static void usb_loop_task(void *arg)
 {
     while (1) {  
         if (get_ext_mode_flag) {
@@ -370,15 +379,99 @@ static void usb_TX_task(void *arg)
             get_ext_mode_flag = false;
         }
         vTaskDelay(pdMS_TO_TICKS(10));
-        refresh_display();
+       
+        #ifndef USE_LEDS
+            refresh_display();
+        #endif 
+
         vTaskDelay(pdMS_TO_TICKS(10));
-        //voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(ADC1_CHANNEL_2), &adc1_chars);
-        //ESP_LOGI(TAG, "ADC1_CHANNEL_2: %lu mV", voltage);
-        //vTaskDelay(pdMS_TO_TICKS(100));
+
+        // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
+        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC1_CHAN0, &adc_raw[0][0]));
+        ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC1_CHAN0, adc_raw[0][0]);
+        if (do_calibration1_chan0) {
+            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
+            ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC1_CHAN0, voltage[0][0]);
+        }
+        // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
+        led_bright_level= (4096 - adc_raw[0][0]) ;  // 12 bits ADC output range is 4096.  Keep < 4096.
+        
+        if (led_bright_level > 4094)
+            led_bright_level = 4094;  // API will crash if exceed max resolution
+        
+        if (init_done) {
+            led_brightness();  // we now have a valid band so the leds get set correctly
+            ESP_LOGI(TAG, "Updated LED band brightness level to %lu", led_bright_level);
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
- void printBinaryWithPadding(uint8_t num, char bin_num[9]) { 
+/*---------------------------------------------------------------
+        ADC Calibration
+---------------------------------------------------------------*/
+static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle)
+{
+    adc_cali_handle_t handle = NULL;
+    esp_err_t ret = ESP_FAIL;
+    bool calibrated = false;
+
+    #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+        if (!calibrated) {
+            ESP_LOGI(TAG, "calibration scheme version is %s", "Curve Fitting");
+            adc_cali_curve_fitting_config_t cali_config = {
+                .unit_id = unit,
+                .chan = channel,
+                .atten = atten,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            ret = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
+            if (ret == ESP_OK) {
+                calibrated = true;
+            }
+        }
+    #endif
+
+    #if ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+        if (!calibrated) {
+            ESP_LOGI(TAG, "calibration scheme version is %s", "Line Fitting");
+            adc_cali_line_fitting_config_t cali_config = {
+                .unit_id = unit,
+                .atten = atten,
+                .bitwidth = ADC_BITWIDTH_DEFAULT,
+            };
+            ret = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
+            if (ret == ESP_OK) {
+                calibrated = true;
+            }
+        }
+    #endif
+
+    *out_handle = handle;
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "Calibration Success");
+    } else if (ret == ESP_ERR_NOT_SUPPORTED || !calibrated) {
+        ESP_LOGW(TAG, "eFuse not burnt, skip software calibration");
+    } else {
+        ESP_LOGE(TAG, "Invalid arg or no memory");
+    }
+
+    return calibrated;
+}
+
+static void adc_calibration_deinit(adc_cali_handle_t handle)
+{
+    #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
+        ESP_LOGI(TAG, "deregister %s calibration scheme", "Curve Fitting");
+        ESP_ERROR_CHECK(adc_cali_delete_scheme_curve_fitting(handle));
+
+    #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
+        ESP_LOGI(TAG, "deregister %s calibration scheme", "Line Fitting");
+        ESP_ERROR_CHECK(adc_cali_delete_scheme_line_fitting(handle));
+    #endif
+}
+
+void printBinaryWithPadding(uint8_t num, char bin_num[9]) { 
     for (int i = sizeof(uint8_t) * 8 - 1; i >= 0; i--) {
         char b = ((num >> i) & 1) + 0x30;
         //printf("%c", b);
@@ -470,14 +563,14 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
         
-        #ifdef RGB_LED
+        #ifdef USE_LEDS
             // Turn off LED for previous band
             ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
             // Update duty to apply the new value
             ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
 
             // light up LED for new band
-            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, LEDC_ON_DUTY));
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, led_bright_level));
             // Update duty to apply the new value
             ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
         #else
@@ -979,7 +1072,7 @@ void poll_for_time(void){
 
 void refresh_display(void) {
     display_Freq(frequency, false);
-    #ifndef RGB_LED
+    #ifndef USE_LEDS
         display_Time(UTC, false);
         display_PTT(PTT, false);
         display_Band(band, false);  // true means draw the icon regardless of state
@@ -1044,16 +1137,16 @@ void setup_IO(void)
     gpio_isr_handler_add((gpio_num_t)GPIO_PTT_INPUT, gpio_isr_handler, (void*) (gpio_num_t) GPIO_PTT_INPUT);
 
     // Set up ADC for LED brightness dimming
-    //esp_adc_cal_characterize(ADC_UNIT_1, ADC_ATTEN_DB_11, ADC_WIDTH_BIT_DEFAULT, 0, &adc1_chars);  // calibrate ADC1
-    //ESP_ERROR_CHECK(adc1_config_width(ADC_WIDTH_BIT_DEFAULT));
-    //ESP_ERROR_CHECK(adc1_config_channel_atten(ADC1_CHANNEL_2, ADC_ATTEN_DB_11));
+    
+    //-------------ADC1 Init---------------//
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
 
-    //adc_continuous_handle_t handle = NULL;
-    //adc_continuous_handle_cfg_t adc_config = {
-    //    .max_store_buf_size = 1024,
-    //    .conv_frame_size = 256,
-    //};
-    //ESP_ERROR_CHECK(adc_continuous_new_handle(&adc_config, &handle));
+    //-------------ADC1 Config---------------//
+    adc_oneshot_chan_cfg_t config = {
+        .atten = ADC_ATTEN,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC1_CHAN0, &config));
 }
 
 /**
@@ -1068,12 +1161,12 @@ extern "C" void app_main(void)  // for .cpp files
 
     setup_IO();
 
-    #ifdef RGB_LED
+    #ifdef USE_LEDS
         ledc_init();    
-    #else
-        gpio_reset_pin(GPIO_NUM_35);
-        gpio_set_direction(GPIO_NUM_35, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
-        gpio_set_level(GPIO_NUM_35, 1);  // Turn it Off.
+    #else  // USE RGB pin 48 or external LED via GPIO for the red PTT in LED on pin 47
+        gpio_reset_pin(GPIO_NUM_47);
+        gpio_set_direction(GPIO_NUM_47, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
+        gpio_set_level(GPIO_NUM_47, 1);  // Turn it Off.
     #endif 
 
     #ifdef USB_PC
@@ -1168,8 +1261,8 @@ extern "C" void app_main(void)  // for .cpp files
     #endif
 
     // create a new rtos task for main radio control loop -- not in use yet
-    BaseType_t TX_task_created = xTaskCreate(usb_TX_task, "usb_TX", 4096, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
-    assert(TX_task_created == pdTRUE);
+    BaseType_t loop_task_created = xTaskCreate(usb_loop_task, "usb_loop", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
+    assert(loop_task_created == pdTRUE);
 
     // Setup our USB Host port
     device_disconnected_sem = xSemaphoreCreateBinary();
@@ -1186,7 +1279,7 @@ extern "C" void app_main(void)  // for .cpp files
     ESP_ERROR_CHECK(usb_host_install(&host_config));
 
     // Create a task that will handle USB library events
-    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 8092, xTaskGetCurrentTaskHandle(), EXAMPLE_USB_HOST_PRIORITY, NULL);
+    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 8092, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
     assert(task_created == pdTRUE);
 
     ESP_LOGI(TAG, "Installing CDC-ACM driver");
@@ -1278,12 +1371,12 @@ extern "C" void app_main(void)  // for .cpp files
 
         init_done = 1;
         ESP_LOGI(TAG, "***Now wait for radio dial and band change messaages");
-        // usb_TX_task() is where our program runs within now.  
+        // usb_loop_task() is where our program runs within now.  
         // handler_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.
         // Incoming CIV data appears in handler_rx whih in turn calls process messages and CIV_Action. 
         // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
-        // or read frequency() calling get ext mode, set a flag and let usb_TX_task() handle it.
+        // or read frequency() calling get ext mode, set a flag and let usb_loop_task() handle it.
         
         // We are done.  The tasks are running things now. Wait for device disconnection and start over
         
