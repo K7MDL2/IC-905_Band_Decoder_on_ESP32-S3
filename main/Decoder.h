@@ -35,7 +35,7 @@ enum band_idx { DUMMY,
 #define GPIO_PTT_INPUT          GPIO_NUM_1   // 
 
 // gpio pins 0, 3, 45, and 46 are CPU option "strapping pins" and should not be used
-// pin 8 is open as ADC1_ch2  for the brightness pot
+// pins 8 and 9 reserved for future i2c bus usage
 #define GPIO_BAND_OUTPUT_144    GPIO_NUM_5   // default Voltage 0V
 #define GPIO_BAND_OUTPUT_430    GPIO_NUM_6   // default Voltage 0V
 #define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7   // default Voltage 0V
