@@ -15,27 +15,28 @@ https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
 # USB Band Decoder for the IC-905
 
-This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calcuation), and extended mode info (data and voice mode).  
+This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calculation), and extended mode info (data and voice mode).  
 
 It provides:
 * 6 band outputs for switching antenna relays, enabling RF amps, etc.
 * 6 PTT outputs for keying amplifiers
 * 1 PTT input (wired to the radio SEND jack)
+* 8 dimmable and assignable status LEDs for Power, 6 bands, and PTT Input
 
 ![20250110_130504](https://github.com/user-attachments/assets/d7b7fba9-d3f7-45c5-aa3e-9a9ae8cdf506)
 
 
-By default each band (there are 6) is configured to operate one Band output pin and 1 PTT output pin in TX.  Also by default the PTT input is pulled high during RX to 3.3VDC and looks for 0V for TX.  A buffer should be used to protect against high voltages > 3.3V. 
+By default each band (there are 6) is configured to operate one Band output pin and 1 PTT output pin in TX.  The IC-905 SEND jack pulls the line to +5V in RX, GND in TX. Buffers are used to protect the CPU IO pins against voltages > 3.3V. 
 
-The PTT and Band output pin(s) are set to logic 1 (3.3VDC) when active to operate a buffer which inverts the signal thus closing the buffer output to GND, the most common for external amplifiers.  PTT polarity is easily changed in the code if needed. Debouncing the PTT Input is not required since the radio has a transistor SEND output switch so it is clean.  The flex_glitch filter does not apply to the S3 but I did apply the fixed glitch filter (2 clocks).
+The PTT and Band output pin(s) patterns are configurable to output any pattern within their function groups (band or PTT).  By default a single output is activated per band, same for the PTT output.  A logic 1 at the GPIO gets inverted at the buffer thus closing the buffer output to GND, the most common need for external amplifiers.  Again, this can be easily configured differently in the code.  PTT polarity is also easily changed in the code if needed. Debouncing the PTT Input is not required since the radio has a transistor SEND output switch so it is clean.  The flex_glitch filter does not apply to the S3 but I did apply the fixed glitch filter (2 clocks) in the PTT input.
 
-LEDs are used on the outputs and PTT input.
+There are 8 independent LEDs assigned by default to indicate the 6 bands (blue), PTT input (red), and Power ON (green).  I used the S3's 8 LED PWM drivers to make them dimmable and reduce overall power consumption.  A potentiometer on the back panel adjusts the brightness to adapt to bright daylight, darker shack, or in-vehicle conditions.
 
 In a more distant future I may make this work over USB and BLE (Bluetooth Low Energy) for an IC-705 with transverter support.  This already exists in my other projects but this project will have a PCB designed for it, making it a bit more convenient for some.
 
-This codes started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO with interrupts from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
+This code started out with the esp-idf peripherals example for cdc-acm usb host lib.  I added in bits for GPIO and GPIO input with interrupt from other samples and chunks of my other IC-705/IC-905 band decoder projects.  This project differs from my others in that is it intended to be a small box with PCB and narrowly focused on being a basic 6 band decoder.  The others go further with graphics screen, transverter support and flexible IO choices.
 
-Here I have code running on a M5AtomsS3 connected to my IC-905.  It has 1 USB-OTG port and IO can be exended with i2c connected modules.  It is easier to develop on a board with 2 USB ports.  The M5Stamp has 1 USB C jack but also has the UART bridge port as pins (D+, D-) on the PCB you can wire to a USB connector and have 2 ports.  This may be the option I go with in the end vs using the AtomS3 or the larger DevKit-1 dual port module. TBD
+Here I have code running on a M5AtomsS3 connected to my IC-905.  It has 1 USB-OTG port and IO can be exended with i2c connected modules.  It is easier to develop on a board with 2 USB ports.  The M5StampS3 has 1 USB C jack but also has the UART bridge port as pins (D+, D-) on the PCB you can wire to a USB connector and have 2 ports.  This can be an option as well.  I tried them all but in the end I chose the larger ESP32-S3-DevKitC-1 dual port module using discrete LEDs for simpler PCB build and more IO pins that were needed.
 
 ![20250105_182044](https://github.com/user-attachments/assets/f9c8ed31-90ea-421f-981f-10adf36ac2ac)
 
@@ -43,20 +44,22 @@ Here I have code running on a M5AtomsS3 connected to my IC-905.  It has 1 USB-OT
 
 ## How to use
 
-Connect the USB-UART (labeled com port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  
+Connect the USB-UART (labeled COM port on some boards) to your PC.  Connect the USB-OTG port to the IC-905.  Upload precompiled firmware per instructions on the Wiki page (under  construction).  If you can successfully set up the Expressif ESP-IDF extension in Visual Studio Code then you can build this repository locally and upload.  You can use any serial monitor (putty, Arduino, esp-idf) to monitor the debug info on the com port.  The USB host port requires 5V for the radio USB port to see and activate.  More details on that below and in the Wiki pages.
 
-You can also take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example.  On the other run this code.  This code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so will connect with either a radio or the ESP32-S3 DevKit 1 device.   When things are working you will see the debug with the correct frequency and you can put a voltmeter on the board IO pins and see 0V and 3.3V per the pin assignments.
+If no radio is available and you just want to check things out (within limits), you can take 2 boards and connect their USB-OTG ports together using a Type C to Type C USB cable.  On one, designated the 'Device", run the tusb-serial-device example code.  On the other run this code.  This code is configured to look for 2 possible USB VID and PID (vendor and Product IDs) so will connect with either a radio or the ESP32-S3 DevKitC-1 device.   Connect the COM port of each board to your PC and open a terminal on each to see them talk.  
+
+Connected to a radio, when things are working you will see the debug on the COM port with the correct frequency info from the radio and you can put a voltmeter on the board IO pins and see 0V and 3.3V per the pin assignments.
 
 
 ### Hardware Required
 
 You will need one ESP32-S3 board which is capable of USB-OTG support.  Some other boards support USB-OTG as well. The easiest way to develop and test is to use a model with 2 USB ports, one port for OTG (operating in USB Host mode) and the other port (USB-UART) to program and debug the board.
 
-I used 2 board models, one with Host 5V and a 4.3" LCD screen, the other a small module with no screen and you need to have a Y cable to siupply +5VDc on the USB host bus port.  ESP32-S3 devices here that support OTG and have a second USB port for debug and programming.  Will need to settle on the final device to use.
+For dev I used 2 board models, one with Host 5V and a 4.3" LCD screen, the other a small module with no screen and you need to have a Y cable to supply +5VDC on the USB host bus port. You can modify the USB host cable or jumper 5V on the CPU module PCB.
 
 What I used:
 
-ESP32-S3-DevKit N16R8 Development Board - small module with 2 ports. About $7 each.  You need to add 5V with a Y cable or jumper to USB or external 5V to power the client device (radio or another test board).  There are many variations that will work, most important is the ESP32-S3 and the 2 USB ports, one OTG.
+ESP32-S3-DevKit N16R8 Development Board - small module with 2 ports. About $7 each.  The PSRAM is not used so other models with smaller or no PSRAM will work.  You need to add 5V with a Y cable or jumper 5V to the USB host port connector to power the client device (radio or another test board).  There are many CPU variations that will work, most important feature is the ESP32-S3 and 2 USB ports, one OTG.
 
 https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitm-1/user_guide.html#getting-started
 
@@ -70,27 +73,27 @@ https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-usb-
 
 This uses a ESP32-S3-Mini module stacked on a like-sized motherboard with a 1.3” LCD and 2 USB connectors. One is a USB Type A female host that provides 5V@500ma and the other a USB Type A male to connect to a PC.
 
-I have M5Stack M5StampS3 and M5StackC3U CPU modules, about $7 each, they support USB OTG but ony come with 1 USB port. You can connect to the 2nd port for USB with some wiring.  Once the code is uploaded over the single OTG port in boot mode, it will run the new firmware and go into OTG host mode to tallk to the radio.  I plan to test with this in the near future.
+I have M5Stack M5StampS3 and M5StackC3U CPU modules, about $7 each, they support USB OTG but ony come with 1 USB port connector, a 2nd port can be wired to your own connector. USing only 1 USB port, once the code is uploaded over the single OTG port in boot mode, it will run the new firmware and go into OTG host mode to talk to the radio.
 
-I have an 800x480 LCD ESP32-S3 OTG dev kit version from Waveshare with 2 USB ports, one 5V powered OTG, that works well also scien it provides the needed 5V.  About $35.
+I have an 800x480 LCD ESP32-S3 OTG dev kit version from Waveshare with 2 USB ports, one 5V powered OTG, that works well also since it provides the needed 5V.  About $35.
 
-One CPU in particular I might try out is the M5stack M5AtomS3.  It has a 0.95" color LCD, one OTG port. It looks pretty good and is very small yet readable, I use it on my 705 decoder. Adding i2c connector IO expansion is easy, just a 4-wire cable that plugs in.  The hard part is how to mount it in a box. 
+I have a configuration option to run on the M5stack M5AtomS3 leveraging its color LCD screen.  It has a 0.95" color LCD, one OTG port. It looks pretty good and is very small yet readable, I use it on my 705 decoder. Adding i2c connector IO expansion is easy, just a 4-wire cable that plugs in.  The hard part is how to mount it in a box.  It works but is messy to add all the IO we need.
 
-The advantage of the boards that provide built-in 5V is they are, or should be, done properly with a fuse and/or current limiting device so you do not cook the client device in a mishap.  The biggest feature is no Y cable!
+The advantage of the boards that provide built-in 5V is they are, or should be, done properly with a fuse and/or current limiting device so you do not cook the client device in a mishap.  The biggest feature is no Y cable!  I used a 1K resistor to jumper the DevKitC-1 module +5 to the host USB.  See the Wiki pages on how I did this.
 
 Speaking of cables, do yourself a favor and inventory your Type C cables.  C to C and A to C.  Test them to be sure they are not charging-only cables!  Mark them if they charging only, it will save you grief!   I found I had 2 of these I was using and spent hours fixing unbroken or partially broken software. Easily missed if you are switching cables a lot while testing and do not have working software to star with and thus know what to blame.  I also lacked 18" cables.  They are all 6" or 6ft.  Creates a cable mess. I ordered 3-packs of 18" cables, much better on my desktop now.  
 
 
 #### Pin Assignment
 
-The pins are defined in the decoder.h file. There are 13 pins used.  1 for PTT input.  6 Band decode outputs and 6 for PTT outputs.  You can change the pin numbers no problem as long as they are not used for something else. There is no need to change any other code, the pin assignments are abstracted.
+The gpio pins are defined in the decoder.h and LED_Control.h files. There are 22 IO pins used.  1 for PTT input, 6 Band decode outputs, 6 PTT outputs, 8 LEDs, and 1 ADC reading a pot position.  You can change the pin numbers no problem as long as they are not used for something else. There is no need to change any other code, the pin assignments are abstracted.  This code has default pin assignments to match a PCB pinout.
 
 
 ### Build and Flash
 
-Build this project using the esp-idf extension in VS Code and flash it to the USB OTG host board, then run monitor tool to view serial output. There are some settings that have to be made located in the sdkconfig file for hub support and packet size.  YOu can edit it or use menuconfig tool.
+Build this project using the esp-idf extension in VS Code and flash it to the USB OTG host board, then run monitor tool to view serial output. There are some settings that have to be made located in the sdkconfig file for hub support and packet size.  You can edit it or use menuconfig tool.  I have esp-idf setup info in a Wiki page.  There is a specific config order recommended to avoid errors.
 
-Below are the OTG related settings. I modify or enable these.  They are sometimes lost if you start the Setup Configure Extension wizard.  I included in the repository here 'sdkconfig.defaults' file which has these.  In theory it will help ensure you do not lose these values.
+Below are OTG related sdkconfig settings. I modify or enable these to support USB hub and the larger than default descriptor sizes.  They are sometimes lost if you start the Setup Configure Extension wizard with setting the ESP32-S3 first.  I included in the repository here 'sdkconfig.defaults' file which has these.  In theory it will help ensure you do not lose these values.
 
       CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE = 2048   --> if you see errors this is usually the culprit, default of 256 is too small for hubs.
       CONFIG_USB_HOST_HUBS_SUPPORTED=y     --> If you see you cannot open the radio and it is connected, this is likely not set
@@ -137,6 +140,7 @@ If using one board for a device rather than the radio, build and flash [tusb_ser
 
 See the ESP-IDF Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
 
+
 ## Example Output
 
 After the flashing you should see the output at idf monitor:
@@ -163,6 +167,6 @@ Various Hex data and debug messages follow.
 The firmware will poll the radio on startup for time, data, location, time offset, frequency, and mode.
 It will also poll the radio for extended mode information when you change bands or modes since the standard mode message omits the Datamode status.
 
-Wiki Pages will contain more as I get further along in this effort.
+Wiki Pages will contain more detail.
 
-I hope to soon design a PCB to mount the CPU module of choice, buffers, jacks, LEDS if used, and an optional OLED display.  It would have a 12V to 5V regulator and a 12V 2.1mm x 5.5mm standard coaxial DC power jack, maybe a power switch.  There will be connectors for the outputs and input. They could be 13 phono (aka RCA) jacks or possibly a high density connector of some sort.  I like the green ones with push-in or screw terminals.  There are also DB9 and HD9 breakouts with screw terminals on a snmall PCB that use the same green terminals.
+I will be designing a PCB to mount the ESP32-S2-DevKitC-1, 2 ULN2803A buffers, PTT input jack, brightness pot, and 8 LEDs.  It has a 12V to 5V regulator and two 12V 2.1mm x 5.5mm standard coaxial DC power jacks.  A 15 pin connector for the outputs, 12V and 5V.  On the cable side I often use a "breakout" HD15 which has screw terminals on a small PCB.  Easier than soldering the HD15 pins.
