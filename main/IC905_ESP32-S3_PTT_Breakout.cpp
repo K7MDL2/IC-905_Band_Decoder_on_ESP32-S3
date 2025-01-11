@@ -144,12 +144,17 @@ static int adc_raw[1][10];
 static int voltage[1][10];
 static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
 static void adc_calibration_deinit(adc_cali_handle_t handle);
-adc_cali_handle_t adc1_cali_chan0_handle = NULL;
-bool do_calibration1_chan0 = adc_calibration_init(ADC_UNIT_1, ADC1_CHAN0, ADC_ATTEN, &adc1_cali_chan0_handle);
-adc_oneshot_unit_handle_t adc1_handle;
-adc_oneshot_unit_init_cfg_t init_config1 = {
-    .unit_id = ADC_UNIT_1,
+
+// ADC setup
+adc_cali_handle_t adc2_cali_chan0_handle = NULL;
+bool do_calibration2 = adc_calibration_init(ADC_UNIT_2, ADC2_CHAN0, ADC_ATTEN, &adc2_cali_chan0_handle);
+
+adc_oneshot_unit_handle_t adc2_handle;
+adc_oneshot_unit_init_cfg_t init_config2 = {
+    .unit_id = ADC_UNIT_2,
+    .ulp_mode = ADC_ULP_MODE_DISABLE,
 };
+
 uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 
 // Mask all 12 of our Band and PTT output pins for Output mode, also our 8 LED output pins
@@ -164,7 +169,6 @@ uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 // Mask our 1 PTT input IO pin for Input with pull up. An interrupt wil be assigned to this pin.
 #define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_PTT_INPUT)
 #define ESP_INTR_FLAG_DEFAULT 0
-#define LED_DIMMER_ADJ_PIN 8  // 8 and 9 are used for i2c. If using LEDs then OLED is not connected, these are free as gpio
 
 static QueueHandle_t gpio_evt_queue = NULL;
 
@@ -387,11 +391,11 @@ static void usb_loop_task(void *arg)
         vTaskDelay(pdMS_TO_TICKS(10));
 
         // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
-        ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC1_CHAN0, &adc_raw[0][0]));
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC1_CHAN0, adc_raw[0][0]);
-        if (do_calibration1_chan0) {
-            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
-            ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC1_CHAN0, voltage[0][0]);
+        ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
+        ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
+        if (do_calibration2) {
+            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
+            ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
         }
         // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
         led_bright_level= (4096 - adc_raw[0][0]) ;  // 12 bits ADC output range is 4096.  Keep < 4096.
@@ -1138,15 +1142,15 @@ void setup_IO(void)
 
     // Set up ADC for LED brightness dimming
     
-    //-------------ADC1 Init---------------//
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+    //-------------ADC2 Init---------------//
+    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config2, &adc2_handle));
 
-    //-------------ADC1 Config---------------//
+    //-------------ADC2 Config---------------//
     adc_oneshot_chan_cfg_t config = {
         .atten = ADC_ATTEN,
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC1_CHAN0, &config));
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc2_handle, ADC2_CHAN0, &config));
 }
 
 /**

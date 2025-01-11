@@ -13,6 +13,9 @@
 
 #ifdef USE_LEDS
 
+    #define LED_DIMMER_ADJ_PIN 18  // do not use 8 and 9, they are used for i2c in future. I
+    // if using LEDs then OLED is not connected, these are free as gpio but even with a LCD a adj pot could still be useful
+\
     #define LED_TIMER_PTT               LEDC_TIMER_0  // Flash cadence used for when PTT is active.
     #define LED_TIMER_PWR_ON            LEDC_TIMER_1  // Flash cadence used for when PTT is active.
     #define LED_TIMER_BAND              LEDC_TIMER_2  // low duty cycle (dim) Band enabled

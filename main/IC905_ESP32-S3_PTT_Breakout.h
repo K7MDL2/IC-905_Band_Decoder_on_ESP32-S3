@@ -102,7 +102,7 @@
 //#define SEE_RAW_TX // see raw hex messages from radio
 
 // For ADC to read the LED brightness pot
-#define ADC1_CHAN0          ADC_CHANNEL_7
+#define ADC2_CHAN0          ADC_CHANNEL_7
 #define ADC_ATTEN           ADC_ATTEN_DB_12
 
 struct Bands {

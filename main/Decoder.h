@@ -48,7 +48,7 @@ enum band_idx { DUMMY,
 #define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // default Voltage 0V
 #define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // default Voltage 0V
 #define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // Also UART1 TX (not used)
-#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_18   // Also UART1 RX (not used)
+#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_38   // Also UART1 RX (not used)  moved from 18 to make way for the ADC and free up 8/9 for i2c in future.
 
 // *************************************************************************************************************
 //
