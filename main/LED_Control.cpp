@@ -121,7 +121,7 @@ extern uint8_t band;
                 .channel        = LEDC_CHANNEL_7,
                 .intr_type      = LEDC_INTR_DISABLE,
                 .timer_sel      = LED_TIMER_PWR_ON,
-                .duty           = LEDC_ON_DUTY/3, // Set duty to 0%
+                .duty           = LEDC_ON_DUTY/GREEN_DIM_FACTOR, // Set duty to 0%
                 .hpoint         = 0  // LEDC channel hpoint value, the range is [0, (2**duty_resolution)-1]
             }
         };
@@ -146,7 +146,7 @@ extern uint8_t band;
         if (band == 0) return;   // do nto have a valid band from radio yet, wait.
         
         // All LEDS are turning on and off by their durty cycle settings.
-        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/3));  // Dim the green LED
+        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
         ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH)); // Keep the power on led lit
         
         for (int i=0; i< 7; i++) {  // Adjust the bands level) .  

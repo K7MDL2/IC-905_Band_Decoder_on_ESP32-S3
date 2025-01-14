@@ -42,8 +42,9 @@
     #define LEDC_OUTPUT_10G_CH         (LEDC_CHANNEL_6)
     #define LEDC_OUTPUT_PWR_ON_CH      (LEDC_CHANNEL_7)
 
-    #define LEDC_DUTY_RES              LEDC_TIMER_12_BIT // Set duty resolution to 12 bits.  2 ** 12) = 4096.  Duty cycle is 2x duty res so 8192
+    #define LEDC_DUTY_RES              LEDC_TIMER_13_BIT // Set duty resolution to 13 bits.  2 ** 13) = 8192.  Duty cycle is 2x duty res so 8192
     #define LEDC_ON_DUTY               (LED_BRIGHT_LEVEL) // for 13 bit 50% is: (2 ** 13) * 50% = 4096.  Higher is brighter
+    #define GREEN_DIM_FACTOR           (3) // Green LED uses lower voltage so has higher current when using same size resistors as blue and red LEDs.
     #define LEDC_OFF_DUTY              (0) // Set duty to 0%. (2 ** 13) * 50% = 4096.  Higher is brighter
     #define LEDC_FREQUENCY             (4000) // Frequency in Hertz. Set frequency at 4 kHz
 
