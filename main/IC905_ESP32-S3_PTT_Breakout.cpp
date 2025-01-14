@@ -1066,7 +1066,7 @@ void poll_for_time(void){
             sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
         else if (radio_address == IC705)             // 705
             sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(2);
+        vTaskDelay(pdMS_TO_TICKS(2));
         */
         ESP_LOGI(TAG, "***Get Time from radio");
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0); 
@@ -1346,28 +1346,28 @@ extern "C" void app_main(void)  // for .cpp files
         vTaskDelay(pdMS_TO_TICKS(2));  // Time for radio to to beready for comms after connection
         
         ESP_LOGI(TAG, "***Starting CI-V communications");
-        //SetFreq(145500000);  // Used for testing
+        //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
         vTaskDelay(pdMS_TO_TICKS(2));
         
         ESP_LOGI(TAG, "***Get frequency from radio");
         sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(20));
 
         // Get started by retrieving frequency, mode, time & location and time offset.
         ESP_LOGI(TAG, "***Get extended mode info from radio");
         sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(20));
         
         ESP_LOGI(TAG, "***Get UTC Offset from radio");
         if (radio_address == IC905)                  //905
             sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
         else if (radio_address == IC705)             // 705
             sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(20));
         
         ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(20));
 
         #ifdef PC_PASSTHROUGH
             esp_log_level_set("*", ESP_LOG_NONE);
@@ -1378,7 +1378,7 @@ extern "C" void app_main(void)  // for .cpp files
         // usb_loop_task() is where our program runs within now.  
         // handler_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.
-        // Incoming CIV data appears in handler_rx whih in turn calls process messages and CIV_Action. 
+        // Incoming CIV data appears in handler_rx which in turn calls processmessages() and CIV_Action(). 
         // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
         // or read frequency() calling get ext mode, set a flag and let usb_loop_task() handle it.
         
