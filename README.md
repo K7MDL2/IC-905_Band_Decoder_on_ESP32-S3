@@ -23,7 +23,6 @@ https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Prototype-Constru
 Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
-
 # USB Band Decoder for the IC-905
 
 This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calculation), and extended mode info (data and voice mode).  
@@ -36,6 +35,7 @@ It provides:
 
 ![20250110_130504](https://github.com/user-attachments/assets/d7b7fba9-d3f7-45c5-aa3e-9a9ae8cdf506)
 
+![20250114_150523](https://github.com/user-attachments/assets/008623c9-15a1-4478-90a3-d50344b063b8)
 
 By default each band (there are 6) is configured to operate one Band output pin and 1 PTT output pin in TX.  The IC-905 SEND jack pulls the line to +5V in RX, GND in TX. Buffers are used to protect the CPU IO pins against voltages > 3.3V. 
 
