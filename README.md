@@ -1,5 +1,12 @@
-| Supported Targets | ESP32-S3 | M5AtomS3 |
-| ----------------- | -------- | -------- |
+| Support Targets | ![alt text][esp32s3] |
+| --- | --- |
+
+| Boards Used | ![alt text][esp32s3DevKitC1] | ![alt text][M5AtomS3] |
+| --- | --- | --- |
+
+[esp32s3]: https://img.shields.io/badge/-ESP32_S3-green "ESP32-S3"
+[esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
+[M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
 Updated January 11, 2025
 
