@@ -100,7 +100,7 @@ extern struct cmdList cmd_List[];
 uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows auto-detect on first messages form radio
 bool use_wired_PTT = WIRED_PTT;           // Selects source of PTT, wired input or polled state from radio.  Wired is preferred, faster.
 uint8_t read_buffer[64];  //Read buffer
-uint8_t prev_band = 0x0;
+uint8_t prev_band = 0xFF;
 uint64_t prev_frequency = 0;
 uint16_t poll_radio_ptt = POLL_PTT_DEFAULT;  // can be changed with detected radio address.
 uint8_t UTC = 1;  // 0 local time, 1 UTC time
@@ -116,14 +116,13 @@ void read_Frequency(uint64_t freq, uint8_t data_len);
 uint8_t getBand(uint64_t _freq);
 void refresh_display(void);
 void draw_new_screen(void);
-void read_Frequency(uint64_t freq, uint8_t data_len);
 uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]);
 extern void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 uint8_t pass_PC_to_radio(void);
 extern uint8_t USBHost_ready;  // 0 = not mounted.  1 = mounted, 2 = system not initialized
 bool USBH_connected = false;
 extern uint16_t background_color;
-uint64_t frequency;
+uint64_t frequency = 0;
 extern bool update_radio_settings_flag;
 static const char *TAG = "USB-CDC";
 static SemaphoreHandle_t device_disconnected_sem;
@@ -377,6 +376,7 @@ static void usb_lib_task(void *arg)
  */
 static void usb_loop_task(void *arg)
 {
+    static uint32_t last_level = 0;  // remember the last LED brightness level
     while (1) {  
         if (get_ext_mode_flag) {
             ESP_LOGI(TAG, "***Get extended mode info from radio");
@@ -393,20 +393,27 @@ static void usb_loop_task(void *arg)
 
         // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
         ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
-        ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
+        //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
         if (do_calibration2) {
             ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
-            ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
+            //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
         }
         // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
-        led_bright_level= (4096 - adc_raw[0][0]) ;  // 12 bits ADC output range is 4096.  Keep < 4096.
+        led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
+        //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
         
-        if (led_bright_level > 4094)
-            led_bright_level = 4094;  // API will crash if exceed max resolution
+        vTaskDelay(pdMS_TO_TICKS(10));
         
-        if (init_done) {
-            led_brightness();  // we now have a valid band so the leds get set correctly
-            ESP_LOGI(TAG, "Updated LED band brightness level to %lu", led_bright_level);
+        if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
+            if ((led_bright_level < (last_level - 40)) || (led_bright_level > (last_level + 40))) {
+                if (led_bright_level < 1)
+                    led_bright_level = 0;  // API will crash if exceed max resolution 
+                if (led_bright_level > 8100)
+                    led_bright_level = 8100;  // API will crash if exceed max resolution
+                led_brightness();  // we now have a valid band so the leds get set correctly
+                ESP_LOGI(TAG, "Updated LED band brightness level to %lu", led_bright_level);
+                last_level = led_bright_level;
+            }
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -569,26 +576,29 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         //get_ext_mode_flag = true;
         
         #ifdef USE_LEDS
-            // Turn off LED for previous band
-            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
-            // Update duty to apply the new value
-            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
+            if (prev_band != 0xFF) {  // have not been through here before, make sure we have a valid band to set the LED to.
+                ESP_LOGI("read_Frequency", "*** Band change to %d.  prev_band was %d", band, prev_band);
+                // Turn off LED for previous band
+                ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
+                // Update duty to apply the new value
+                ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) prev_band));
 
-            // light up LED for new band
-            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, led_bright_level));
-            // Update duty to apply the new value
-            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
+                // light up LED for new band
+                ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) band, led_bright_level));
+                // Update duty to apply the new value
+                ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) band));
+            }
         #else
             draw_new_screen();
         #endif
+        
+        // Use the band to operate our band enable outputs for the 6 905 bands.
+        Band_Decode_Output(band);
 
         prev_band = band;
     }
 
-    // Use the band to operate our band enable outputs for the 6 905 bands.
-    Band_Decode_Output(band);
-
-    //ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  Xvtr_Offset = %llu  datalen = %d   btConnected %d   USBH_connected %d   BT_enabled %d   BLE_connected %d  radio_address %X", frequency, band, bands[XVTR_Band].Xvtr_offset, data_len, btConnected, USBH_connected, BT_enabled, BLE_connected, radio_address);
+    ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  datalen = %d   btConnected %d   USBH_connected %d  BLE_connected %d  radio_address %X", frequency, band, data_len, btConnected, USBH_connected, BLE_connected, radio_address);
     // On exit from this function we have a new displayed frequency that has XVTR_Offset added, if any.
 }
 
@@ -661,7 +671,8 @@ void Band_Decode_Output(uint8_t band) // pass IF_Switch_OFF value to GPIO_out fo
         case  BAND_23cm : GPIO_Out(DECODE_BAND1200); break;   //1296
         case  BAND_13cm : GPIO_Out(DECODE_BAND2300); break;   //2400
         case  BAND_6cm  : GPIO_Out(DECODE_BAND5600); break;   //5760M
-        case  BAND_3cm  : GPIO_Out(DECODE_BAND10G);  break;   //10.368.1G
+        case  BAND_3cm  : GPIO_Out(DECODE_BAND10G);  break;   //10G
+        default: GPIO_Out(DECODE_BAND144);
     }
 }
 
@@ -691,6 +702,7 @@ void PTT_Output(uint8_t band, bool PTT_state)
         case  BAND_13cm : GPIO_PTT_Out(DECODE_BAND2300_PTT, PTT_state); break;   //2400
         case  BAND_6cm  : GPIO_PTT_Out(DECODE_BAND5600_PTT, PTT_state); break;   //5760M
         case  BAND_3cm  : GPIO_PTT_Out(DECODE_BAND10G_PTT,  PTT_state); break;   //10.368.1G
+        default: GPIO_PTT_Out(DECODE_BAND144_PTT,  PTT_state);
     }
 }
 
@@ -749,7 +761,8 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
             #endif
             if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE) {
                 radio_address_received = read_buffer[3];
-                if (read_buffer[3] == radio_address) {
+                //if (read_buffer[3] == radio_address) {
+                if (read_buffer[3] != 0) {
                     if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
 
                         for (cmd_num = CIV_C_F_SEND; cmd_num < End_of_Cmd_List; cmd_num++)  // loop through the command list structure looking for a pattern match
@@ -1190,9 +1203,9 @@ extern "C" void app_main(void)  // for .cpp files
     #ifdef USE_LEDS
         ledc_init();    
     #else  // USE RGB pin 48 or external LED via GPIO for the red PTT in LED on pin 47
-        gpio_reset_pin(GPIO_NUM_47);
-        gpio_set_direction(GPIO_NUM_47, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
-        gpio_set_level(GPIO_NUM_47, 1);  // Turn it Off.
+        gpio_reset_pin(GPIO_NUM_48);
+        gpio_set_direction(GPIO_NUM_48, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
+        gpio_set_level(GPIO_NUM_48, 1);  // Turn it Off.
     #endif 
 
     #ifdef USB_PC
@@ -1368,20 +1381,23 @@ extern "C" void app_main(void)  // for .cpp files
         USBH_connected = true;
 
         // We can now send to CI-V
-        vTaskDelay(pdMS_TO_TICKS(2));  // Time for radio to to beready for comms after connection
+        vTaskDelay(pdMS_TO_TICKS(200));  // Time for radio to to be ready for comms after connection
+        // Have observed a mode message will be received on connection so awit for that to finish.
         
         ESP_LOGI(TAG, "***Starting CI-V communications");
         //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(200));
         
-        ESP_LOGI(TAG, "***Get frequency from radio");
-        sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
-        vTaskDelay(pdMS_TO_TICKS(20));
-        
-        ESP_LOGI(TAG, "***Get CI-V address from radio");
-        Get_Radio_address();
-        vTaskDelay(pdMS_TO_TICKS(2));  // Time for radio to to beready for comms after connection
+        while (radio_address == 0 || frequency == 0) {
+            ESP_LOGI(TAG, "***Get frequency from radio");
+            sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
+            vTaskDelay(pdMS_TO_TICKS(100));
 
+            ESP_LOGI(TAG, "***Get CI-V address from radio");
+            Get_Radio_address();
+            vTaskDelay(pdMS_TO_TICKS(100));  // Time for radio to to beready for comms after connection
+        }
+        
         // Get started by retrieving frequency, mode, time & location and time offset.
         ESP_LOGI(TAG, "***Get extended mode info from radio");
         sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
@@ -1403,7 +1419,8 @@ extern "C" void app_main(void)  // for .cpp files
         #endif
 
         init_done = 1;
-        ESP_LOGI(TAG, "***Now wait for radio dial and band change messaages");
+
+        ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
         // usb_loop_task() is where our program runs within now.  
         // handler_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.

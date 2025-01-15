@@ -15,7 +15,7 @@
 #define IC9700 0xA2
 #define RADIO_ADDR ALL_RADIOS
 
-#define LED_BRIGHT_LEVEL  600   // (0-4094) for 10bit, 8190 for 13 bit res.  Sets all Discrete LEDs brightness level
+#define LED_BRIGHT_LEVEL  600   // (0-8100) for 10bit, 8100 for 13 bit res.  Sets all Discrete LEDs brightness level
 
 //#define GET_EXT_MODE_INFO     // Enable extended mode info poll after normal mode result received.  
                                 // Only used when there is a display and may interfere with WSJT-X
