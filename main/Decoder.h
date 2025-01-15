@@ -36,9 +36,9 @@ enum band_idx { DUMMY,
 
 // gpio pins 0, 3, 45, and 46 are CPU option "strapping pins" and should not be used
 // pins 8 and 9 reserved for future i2c bus usage
-#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5   // default Voltage 0V
-#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6   // default Voltage 0V
-#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7   // default Voltage 0V
+#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5    // default Voltage 0V
+#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6    // default Voltage 0V
+#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7    // default Voltage 0V
 #define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // default Voltage 0V
 #define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // default Voltage 0V
 #define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // default Voltage 0V
@@ -57,33 +57,32 @@ enum band_idx { DUMMY,
 //**************************************************************************************************************
 
 // BAND DECODE INPUT PATTERN MAPPING TO BAND
-// Likey not used, TBD  These are not pins, just a band index.
+// Likey not used, TBD.  These are not pins, just a band index.
 #define DECODE_INPUT_DUMMY        0    //Dummy Row
-#define DECODE_INPUT_BAND144      1    //2M
+#define DECODE_INPUT_BAND144      1    //144
 #define DECODE_INPUT_BAND430      2    //432
 #define DECODE_INPUT_BAND1200     3    //1296
 #define DECODE_INPUT_BAND2300     4    //2400
 #define DECODE_INPUT_BAND5600     5    //5760M
-#define DECODE_INPUT_BAND10G      6    //10.368.1G
+#define DECODE_INPUT_BAND10G      6    //10G
 
 
-// Band Decode Output pattern
-// Example: For Core module with just the 4In/8out module, there are 8 output.  Use lowest half of the value.
-#define DECODE_BAND_DUMMY   (0x00)    //Dummy Row
-#define DECODE_BAND144      (0x01)    //2M
-#define DECODE_BAND430      (0x02)    //432
-#define DECODE_BAND1200     (0x04)    //1296
-#define DECODE_BAND2300     (0x08)    //2400
-#define DECODE_BAND5600     (0x10)    //5760M
-#define DECODE_BAND10G      (0x20)    //10.368.1G
+// Band Decode Output pattern - default is  1 of 6 pattern.  Can make it anything you need.
+#define DECODE_BAND_DUMMY    (0x00)    //Dummy Row
+#define DECODE_BAND144       (0x01)    //144
+#define DECODE_BAND430       (0x02)    //432
+#define DECODE_BAND1200      (0x04)    //1296
+#define DECODE_BAND2300      (0x08)    //2400
+#define DECODE_BAND5600      (0x10)    //5760
+#define DECODE_BAND10G       (0x20)    //10G
 
-// invert for buffer.  Set low for TX=OFF, raise high for TX=ON and make TX=GND on buffer output
+// inverted for buffer.  Set low for TX=OFF, raise high for TX=ON and make TX=GND on buffer output
 #define DECODE_DUMMY_PTT     (0x00)    //Dummy Row
-#define DECODE_BAND144_PTT   (0x01)    //2M_PTT
+#define DECODE_BAND144_PTT   (0x01)    //144_PTT
 #define DECODE_BAND430_PTT   (0x02)    //432_PTT
 #define DECODE_BAND1200_PTT  (0x04)    //1296_PTT
 #define DECODE_BAND2300_PTT  (0x08)    //2400_PTT
 #define DECODE_BAND5600_PTT  (0x10)    //5760_PTT
-#define DECODE_BAND10G_PTT   (0x20)    //10.368.1G_PTT
+#define DECODE_BAND10G_PTT   (0x20)    //10G_PTT
 
 #endif

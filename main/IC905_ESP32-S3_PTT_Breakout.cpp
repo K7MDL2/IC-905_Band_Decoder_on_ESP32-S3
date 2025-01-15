@@ -383,7 +383,7 @@ static void usb_loop_task(void *arg)
             sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
             get_ext_mode_flag = false;
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(100));
        
         #ifndef USE_LEDS
             refresh_display();
@@ -402,7 +402,7 @@ static void usb_loop_task(void *arg)
         led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
         //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
         
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(100));
         
         if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
             if ((led_bright_level < (last_level - 40)) || (led_bright_level > (last_level + 40))) {
@@ -411,7 +411,7 @@ static void usb_loop_task(void *arg)
                 if (led_bright_level > 8100)
                     led_bright_level = 8100;  // API will crash if exceed max resolution
                 led_brightness();  // we now have a valid band so the leds get set correctly
-                ESP_LOGI(TAG, "Updated LED band brightness level to %lu", led_bright_level);
+                ESP_LOGI(TAG, "Updated LED band brightness level to %lu of 0-8100", led_bright_level);
                 last_level = led_bright_level;
             }
         }

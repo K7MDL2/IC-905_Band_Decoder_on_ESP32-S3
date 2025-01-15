@@ -9,45 +9,44 @@
 #include <inttypes.h>
 #include "CIV.h"
 
+// --------------------------------------------------------------------------------------------------------
+//  Start of User selected values
+// --------------------------------------------------------------------------------------------------------
 #define ALL_RADIOS 0
 #define IC705 0xA4
 #define IC905 0xAC
 #define IC9700 0xA2
-#define RADIO_ADDR ALL_RADIOS
+#define RADIO_ADDR ALL_RADIOS   // default ALL_RADIOS
 
-#define LED_BRIGHT_LEVEL  600   // (0-8100) for 10bit, 8100 for 13 bit res.  Sets all Discrete LEDs brightness level
+#define LED_BRIGHT_LEVEL  600   // (0-8100)  Sets all Discrete LEDs brightness level. Default=600
 
 //#define GET_EXT_MODE_INFO     // Enable extended mode info poll after normal mode result received.  
-                                // Only used when there is a display and may interfere with WSJT-X
+                                // Only used when there is a display and may interfere with WSJT-X if PC Passthrough on
 
 //#define POLL_FOR_TIME         // Polls every 1 second for time and location info from radio
-                                // Only used when there is a display and may interfere with WSJT-X.  
+                                // Only used when there is a display and may interfere with WSJT-X if PC Passthrough on
 
 #define WIRED_PTT   1           // 1 = use the wired input for fastest PTT response time
                                 // 0 = poll radio for TX status. Polling delay can be adjusted with parameters below.
-// NOTE: With a single USB virtual Serial port to the PC, ANY debug on Serial will interfere with a program like WSJT-X passing through to teh radio.
-#define USBHOST                 // if no BLE or BTCLASSIC this must be enabled.   *** USB Host is not stable so far ****
 
-#define PTT_DELAY    30       // PTT sequencing delay.  At start of PTT -> TX event, turns OFF IF switch to prevent
-                              //   RF flowing while downstream relays are switching.
+#define PTT_DELAY    30       // PTT sequencing delay. Not used yet. 
+                              // At start of PTT -> TX event, turns OFF IF switch to prevent
+                              // RF flowing while downstream relays are switching.
 
 #define POLL_PTT_DEFAULT 247  // poll the radio for PTT status odd numbers to stagger them a bit
-                              // USB on both the 705 and 905 respond to PTT requests slower on USB than BT on the 705.
                               // Also polls the wired inputs  Can go down to 25-45.  When using wired PTT set this slow.
-#define POLL_PTT_USBHOST 262  // Dynamically changes value based on detected radio address.
-                              // By observation, on USB, the radio only responds once every few seconds when the radio 
-                              //   has not changed states.  It will immediately reply to a poll if the Tx state changed. 
-                              //   Still have to poll fast for controlling external PTT, most requests will not be answered. 
-                              //   Unlike other modes.  BT seems to answer every request. USB2 engine is likely the same in 
-                              //   all radios, where BT got a capacity upgrade.  The 905 acts the same as the 905 (905 is USB only) 
-                              //   Have not compared to a LAN connection.
-#define POLL_RADIO_FREQ   708 // poll the radio for frequency
+
 #define POLL_RADIO_UTC    998 // poll radio for time and location
+
 #define POLL_RADIO_MODE  6101 // poll radio for extended mode, filter and datamode
-#define POLL_RADIO_AGC   3403 // poll radio for AGC
-#define POLL_RADIO_ATTN  3305 // poll radio for atten status
-#define POLL_RADIO_PRE   3204 // poll radio for preamp status
-#define POLL_RADIO_SPLIT 3102 // poll radio for split status
+
+#define USE_LEDS  // operate band/PTT status LEDS (likely instead of using a OLED).
+
+//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is GPIO48
+
+// --------------------------------------------------------------------------------------------------------
+//   End of user selected values
+// --------------------------------------------------------------------------------------------------------
 
 #define CONTROLLER_ADDRESS 0xE0  //Controller address
 #define BROADCAST_ADDRESS 0x00
@@ -64,14 +63,7 @@
   #undef NO_SEND  // block changes to radio from controller - used for PC pass thru
 #endif
 
-#define USE_LEDS  // operate band/PTT status LEDS (likely instead of using a OLED).
-#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C ///< See datasheet for Address; 0x3D for 128x64, 0x3C for 128x32
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
-
 #define USB_HOST_PRIORITY   (20)
-//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is GPIO48
 
 // VID and PID for Icom IC-905 radio - has 2 serial channels and audio codec channel
 // cannot open this device as acm.  Maybe it is the spectrum channel
