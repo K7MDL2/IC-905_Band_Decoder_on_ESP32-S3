@@ -3,17 +3,19 @@
  *   Jan 2025 by K7MDL
  *
  *  This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency messages.
- *  For 10GHz and higher the IC-905 adds 1 extra byte thqat must be accounted for to decode the BCD encoded frequency
+ *  For 10GHz and higher the IC-905 adds 1 extra byte that must be accounted for to decode the BCD encoded frequency
  *  The last data byte sent for frequency is the MSB.
- *  The radio PTT (aka SEND output) is wired into this CPU and monitored.
- *  There are 6 PTT and 6 band enable outputs, with status LEDs for each
- *  PTT is normally +5V if directly connected to the SEND jack with a weak pullup at the radio and/or at the CPU
- *  When PPT = 0 (radio is in TX) then we use the last frequency seen and send 1 to the matching band's PTT output.
+ *  The radio PTT (aka SEND output) is wired into this CPU and monitored.  There is a status LED for it.
+ *  There are 6 PTT and 6 band enable outputs, with status LEDs for each band
+ *  There is a power LED.  It is assigned for power status but can be used for anything.
+ *  PTT is normally +5V if directly connected to the SEND jack with a weak pullup at the radio and at the CPU sides
+ *  When PTT = 0 (radio is in TX) then we use the last frequency seen and send logic 1 to the matching band's PTT output.
  *  A ULN2803A open collector octal driver buffers the CPU outputs and also inverts so a logic 1 results in closure to GND.
  * 
- *  Support for the AtomS3 is enabled by a #define ATOMS3. It has no I/O but has a nice small color LCD that displays
- *  frequency, time/date from radio, BAND, TX status, location which I caclulate 8 digit grid sqaure from.  
- *  On bootup the radio is polled for time, location, band/frequency, modem, extended mode.  
+ *  Support for the AtomS3 is enabled by a #define ATOMS3. It has no I/O support in this code today but has a nice
+ *  small color LCD that displays frequency, time/date from radio, BAND, TX status, and location.
+ *  I caclulate 8 digit grid square and display it in teh debug and on an optional display like the AtomsS3
+ *  On bootup the radio is polled for time, location, band/frequency, modem, extended mode, UTC offset.  
  *  After that it listens for messages only so it does not interfere with future PC to Radio CI_V serial bridging.
  * 
  *  ---------------------------------------------------------------------------------
@@ -24,6 +26,7 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 
+#include "IC905_ESP32-S3_PTT_Breakout.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -48,9 +51,6 @@
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
 
-//#define ATOMS3
-
-#include "IC905_ESP32-S3_PTT_Breakout.h"
 #include "Decoder.h"
 #include "CIV.h"
 #include "LED_Control.h"
@@ -158,13 +158,20 @@ adc_oneshot_unit_init_cfg_t init_config2 = {
 uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 
 // Mask all 12 of our Band and PTT output pins for Output mode, also our 8 LED output pins
-#define GPIO_OUTPUT_PIN_SEL  (1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
-                            | 1ULL<<GPIO_BAND_OUTPUT_2300 | 1ULL<<GPIO_BAND_OUTPUT_5600 | 1ULL<<GPIO_BAND_OUTPUT_10G  \
-                            | 1ULL<<GPIO_PTT_OUTPUT_144   | 1ULL<<GPIO_PTT_OUTPUT_430   | 1ULL<<GPIO_PTT_OUTPUT_1200  \
-                            | 1ULL<<GPIO_PTT_OUTPUT_2300  | 1ULL<<GPIO_PTT_OUTPUT_5600  | 1ULL<<GPIO_PTT_OUTPUT_10G   \
-                            | 1ULL<<LEDC_OUTPUT_144_IO    | 1ULL<<LEDC_OUTPUT_430_IO    | 1ULL<<LEDC_OUTPUT_1200_IO   \
-                            | 1ULL<<LEDC_OUTPUT_2300_IO   | 1ULL<<LEDC_OUTPUT_5600_IO   | 1ULL<<LEDC_OUTPUT_10G_IO    \
-                            | 1ULL<<LEDC_OUTPUT_PWR_ON_IO | 1ULL<<LEDC_PTT_IN_OUTPUT_IO);
+#ifdef USE_LEDS                            
+    #define GPIO_OUTPUT_PIN_SEL ( 1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
+                                | 1ULL<<GPIO_BAND_OUTPUT_2300 | 1ULL<<GPIO_BAND_OUTPUT_5600 | 1ULL<<GPIO_BAND_OUTPUT_10G  \
+                                | 1ULL<<GPIO_PTT_OUTPUT_144   | 1ULL<<GPIO_PTT_OUTPUT_430   | 1ULL<<GPIO_PTT_OUTPUT_1200  \
+                                | 1ULL<<GPIO_PTT_OUTPUT_2300  | 1ULL<<GPIO_PTT_OUTPUT_5600  | 1ULL<<GPIO_PTT_OUTPUT_10G   \
+                                | 1ULL<<LEDC_OUTPUT_144_IO    | 1ULL<<LEDC_OUTPUT_430_IO    | 1ULL<<LEDC_OUTPUT_1200_IO   \
+                                | 1ULL<<LEDC_OUTPUT_2300_IO   | 1ULL<<LEDC_OUTPUT_5600_IO   | 1ULL<<LEDC_OUTPUT_10G_IO    \
+                                | 1ULL<<LEDC_OUTPUT_PWR_ON_IO | 1ULL<<LEDC_PTT_IN_OUTPUT_IO );
+#else
+    #define GPIO_OUTPUT_PIN_SEL ( 1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
+                                | 1ULL<<GPIO_BAND_OUTPUT_2300 | 1ULL<<GPIO_BAND_OUTPUT_5600 | 1ULL<<GPIO_BAND_OUTPUT_10G  \
+                                | 1ULL<<GPIO_PTT_OUTPUT_144   | 1ULL<<GPIO_PTT_OUTPUT_430   | 1ULL<<GPIO_PTT_OUTPUT_1200  \
+                                | 1ULL<<GPIO_PTT_OUTPUT_2300  | 1ULL<<GPIO_PTT_OUTPUT_5600  | 1ULL<<GPIO_PTT_OUTPUT_10G   );
+#endif                            
 
 // Mask our 1 PTT input IO pin for Input with pull up. An interrupt wil be assigned to this pin.
 #define GPIO_INPUT_PIN_SEL  (1ULL<<GPIO_PTT_INPUT)
@@ -387,34 +394,36 @@ static void usb_loop_task(void *arg)
        
         #ifndef USE_LEDS
             refresh_display();
-        #endif 
+        #else 
+            vTaskDelay(pdMS_TO_TICKS(10));
 
-        vTaskDelay(pdMS_TO_TICKS(10));
-
-        // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
-        ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
-        //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
-        if (do_calibration2) {
-            ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
-            //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
-        }
-        // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
-        led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
-        //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
-        
-        vTaskDelay(pdMS_TO_TICKS(100));
-        
-        if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
-            if ((led_bright_level < (last_level - 40)) || (led_bright_level > (last_level + 40))) {
-                if (led_bright_level < 1)
-                    led_bright_level = 0;  // API will crash if exceed max resolution 
-                if (led_bright_level > 8100)
-                    led_bright_level = 8100;  // API will crash if exceed max resolution
-                led_brightness();  // we now have a valid band so the leds get set correctly
-                ESP_LOGI(TAG, "Updated LED band brightness level to %lu of 0-8100", led_bright_level);
-                last_level = led_bright_level;
+            // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
+            ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
+            //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
+            if (do_calibration2) {
+                ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
+                //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
             }
-        }
+
+            // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
+            led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
+            //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
+            
+            vTaskDelay(pdMS_TO_TICKS(100));
+            
+            if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
+                if ((led_bright_level < (last_level - 40)) || (led_bright_level > (last_level + 40))) {
+                    if (led_bright_level < 1)
+                        led_bright_level = 0;  // API will crash if exceed max resolution 
+                    if (led_bright_level > 8100)
+                        led_bright_level = 8100;  // API will crash if exceed max resolution
+                    led_brightness();  // we now have a valid band so the leds get set correctly
+                    ESP_LOGI(TAG, "Updated LED band brightness level to %lu of 0-8100", led_bright_level);
+                    last_level = led_bright_level;
+                }
+            }
+        #endif // USE_LEDS
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -1085,7 +1094,7 @@ void poll_for_time(void){
         */
         ESP_LOGI(TAG, "***Get Time from radio");
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0); 
-        vTaskDelay(pdMS_TO_TICKS(2));
+        vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
 

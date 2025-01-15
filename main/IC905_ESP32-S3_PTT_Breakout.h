@@ -42,11 +42,18 @@
 
 #define USE_LEDS  // operate band/PTT status LEDS (likely instead of using a OLED).
 
-//#define RGB_LED_PIN 48  // RGB LED on DevKitC-1 is GPIO48
+//#define RGB_LED_PIN 48      // RGB LED on DevKitC-1 is GPIO48
+
+//#define ATOMS3                // Compile with setting for the M5Stack M5AtomS3 which features a color LCD
 
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values
 // --------------------------------------------------------------------------------------------------------
+
+#ifdef ATOMS3
+    #define POLL_FOR_TIME
+    #undef USE_LEDS
+#endif
 
 #define CONTROLLER_ADDRESS 0xE0  //Controller address
 #define BROADCAST_ADDRESS 0x00
@@ -117,9 +124,9 @@ struct Bands {
 };
 
 #define M5ATOMS3 11
-//#ifdef ATOMS3
 
-#if defined ( CONFIG_IDF_TARGET_ESP32S3 )
+#ifdef ATOMS3
+//#if defined ( CONFIG_IDF_TARGET_ESP32S3 )
     #ifdef __M5GFX_M5ATOMDISPLAY__
       #include <M5Unified.h>  // kills off USB Host
       //#include <M5AtomS3.h>
@@ -128,6 +135,6 @@ struct Bands {
       //#include <M5CoreS3.h>   // Mov 2024 latest M5Unified now supports M5CoreS3
       #include <M5Unified.h>  // kills off USB Host
     #endif
-#endif
+#endif  // CONFIG_IDF_TARGET_ESP32S3
 
 #endif // _IC905_H_

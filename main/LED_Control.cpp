@@ -10,6 +10,7 @@
 */ 
 
 #include "freertos/FreeRTOS.h"  // need for time delay function
+#include "esp_log.h"
 #include "LED_Control.h"
 
 extern uint32_t led_bright_level;

@@ -54,7 +54,7 @@ struct position {
     double longitude;
 };
 
-static char Latitude[14];    /* size to hold longest values supplied by GPS, assuming 10 plus null for now   */
+static char Latitude[14];    // size to hold longest values supplied by GPS, assuming 10 plus null for now
 static char Longitude[14];
 void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 void reverse(char *str, int len);
