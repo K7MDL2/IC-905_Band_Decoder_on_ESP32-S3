@@ -652,7 +652,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         //ConvertToMinutes(GPS_Msg);       
         // Here I directly converted to what Convert_to_MH wants
         Convert_to_MH();
-        //ESP_LOGI(TAG, "CIV_Action: GPS Converted: Lat = %s  Long = %s  Grid Square is %s", Latitude, Longitude, Grid_Square);
+        ESP_LOGI(TAG, "CIV_Action: GPS Converted: Lat = %s  Long = %s  Grid Square is %s", Latitude, Longitude, Grid_Square);
         //ESP_LOGI(TAG, "CIV_Action: ** Time from Radio is: ");
 
         uint8_t d_index = 0;
@@ -675,7 +675,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         else
         {
           setTime(_hr,_min,_sec,_day,_month,_yr);  // display UTC time
-          //ESP_LOGI(TAG, "UTC Time: %d:%d:%d  %d/%d/%d",_hr,_min,_sec,_month,_day,_yr); 
+          ESP_LOGI(TAG, "UTC Time: %d:%d:%d  %d/%d/%d",_hr,_min,_sec,_month,_day,_yr); 
         }
         break;
       /*
