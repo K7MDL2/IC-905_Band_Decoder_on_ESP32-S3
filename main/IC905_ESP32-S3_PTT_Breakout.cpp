@@ -144,6 +144,7 @@ static int adc_raw[1][10];
 static int voltage[1][10];
 static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
 static void adc_calibration_deinit(adc_cali_handle_t handle);
+uint8_t radio_address_received = 0;
 
 // ADC setup
 adc_cali_handle_t adc2_cali_chan0_handle = NULL;
@@ -747,6 +748,7 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                 ESP_LOGI("processCatMessages", " msg_len = %d END", msg_len);
             #endif
             if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE) {
+                radio_address_received = read_buffer[3];
                 if (read_buffer[3] == radio_address) {
                     if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
 
@@ -1084,6 +1086,26 @@ void refresh_display(void) {
     #endif  // If we have LEDs then we likey have no screen to draw.
 }
 
+uint8_t Get_Radio_address(void) {
+    uint8_t retry_Count = 0;
+    
+    if (USBH_connected)
+    {
+        while (radio_address == 0x00 || radio_address == 0xFF || radio_address == 0xE0) {
+            if (radio_address_received == 0) {
+                ESP_LOGI("Get_Radio_address:", "Radio not found - retry count = %X", retry_Count);
+                vTaskDelay(100);
+                if (retry_Count++ > 4)
+                    break;
+            } else {
+                radio_address = radio_address_received;
+                ESP_LOGI("Get_Radio_address: ", "Radio found at %X", radio_address);
+            }
+        }
+    }
+    return retry_Count;
+}
+
 void setup_IO(void)
 {   
     // Set up an interrupt on our PTT input pin and set output pins
@@ -1302,11 +1324,14 @@ extern "C" void app_main(void)  // for .cpp files
         //cdc_acm_dev_hdl_t cdc_dev = NULL;
 
         // Open USB device from tusb_serial_device example example. Either single or dual port configuration.
-        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_VID, USB_DEVICE_PID);
-        esp_err_t err = cdc_acm_host_open(USB_DEVICE_VID, USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
+        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", CDC_HOST_ANY_VID, CDC_HOST_ANY_PID);
+       
+       esp_err_t err = cdc_acm_host_open(CDC_HOST_ANY_VID, CDC_HOST_ANY_PID, 0, &dev_config, &cdc_dev);
+        //esp_err_t err = cdc_acm_host_open(USB_DEVICE_VID, USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
+       
         if (ESP_OK != err) {
-            ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID);
-            err = cdc_acm_host_open(USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
+            //ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID);
+            //err = cdc_acm_host_open(USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
             if (ESP_OK != err) {
                 ESP_LOGI(TAG, "Failed to open device");
                 continue;
@@ -1352,6 +1377,10 @@ extern "C" void app_main(void)  // for .cpp files
         ESP_LOGI(TAG, "***Get frequency from radio");
         sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
         vTaskDelay(pdMS_TO_TICKS(20));
+        
+        ESP_LOGI(TAG, "***Get CI-V address from radio");
+        Get_Radio_address();
+        vTaskDelay(pdMS_TO_TICKS(2));  // Time for radio to to beready for comms after connection
 
         // Get started by retrieving frequency, mode, time & location and time offset.
         ESP_LOGI(TAG, "***Get extended mode info from radio");

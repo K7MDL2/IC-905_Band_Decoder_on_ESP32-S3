@@ -9,10 +9,11 @@
 #include <inttypes.h>
 #include "CIV.h"
 
+#define ALL_RADIOS 0
 #define IC705 0xA4
 #define IC905 0xAC
 #define IC9700 0xA2
-#define RADIO_ADDR IC905
+#define RADIO_ADDR ALL_RADIOS
 
 #define LED_BRIGHT_LEVEL  600   // (0-4094) for 10bit, 8190 for 13 bit res.  Sets all Discrete LEDs brightness level
 
