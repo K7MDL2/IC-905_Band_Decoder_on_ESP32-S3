@@ -8,7 +8,7 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-Updated January 11, 2025
+Updated January 14, 2025
 
 ## *** Dev in progress, changes can be daily ***
 
@@ -24,7 +24,7 @@ Other pages are or will be created for build, design, and operate. The Wiki Home
 
 # USB Band Decoder for the IC-905
 
-This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calculation), and extended mode info (data and voice mode).  
+This is a Band Decoder and PTT Breakout for the IC-905 radio.  It plugs into the IC-905 USB port and communicates with the radio using CI-V serial protocol to extract frequency (for band), time, date, location (for grid square calculation), and extended mode info (data and voice mode).  It now auto-detects the radio's CI-V address at startup and works with any valid USB VID/PID.  So you can plug it into another VHF+ radio model like the IC-9700 and it should work.  Other VHF capable USB equipped models may sort of work as long as you stay on the VHF+ bands.  I expect to add support for HF/6M bands later.  
 
 It provides:
 * 6 band outputs for switching antenna relays, enabling RF amps, etc.
