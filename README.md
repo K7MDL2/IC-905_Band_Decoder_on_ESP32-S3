@@ -16,12 +16,11 @@ As development is in progress, changes can happen daily.  See the Development No
 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
-The prototype construction is documented on this page.
+The prototype construction is documented on this page: https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Prototype-Construction
 
-https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Prototype-Construction
+How to flash firmware to your ESP32 CPU module with the Windows Flash Download Tool. No dev tools or programming knowledge required : https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Using-Flash-Download-Tool
 
-Other pages are or will be created for build, design, and operate. The Wiki Home page is at 
-https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
+Other pages are or will be created for build, design, and operate. The Wiki Home page is at https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki for more detail.
 
 # USB Band Decoder for the IC-905
 
