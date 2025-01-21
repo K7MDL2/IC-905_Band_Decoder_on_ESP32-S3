@@ -8,11 +8,19 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-Updated January 14, 2025
+Updated January 20, 2025
 
-## *** Dev in progress, changes can be daily ***
+2 PCBs have been designed and I ordered 20 sets today along with key hardware parts for them.   Here is the USB Decoder board:
 
-As development is in progress, changes can happen daily.  See the Development Notes page for latest info on changes and design intent, decisions to be made or done.
+![image](https://github.com/user-attachments/assets/8823bcb0-a3c8-470e-98d7-2823973be588)
+
+The 2nd board is an optional general purpose Remote BCD Decoder intended to extend the USB Decoder's 12 outputs using common 7-conductor rotator cable
+
+![image](https://github.com/user-attachments/assets/c43eb553-e9ce-426f-8317-e2de99b5d294)
+
+https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/PCB-Version
+
+Below are recent Dev and prptotype Wiki page links:
 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Development-Notes
 
