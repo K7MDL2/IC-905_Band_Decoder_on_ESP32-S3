@@ -8,9 +8,9 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-Updated January 20, 2025
+Update 21 Jan 2025: PCBs are done and have shipped today.  Should see them in a few days.   Added code to flash the Power_ON LED every 1 second when there is no valid USB connection to the radio.  Also created a new function to flash PTT LEDs.  Not using it yet.  Will fl;ash teh activ e band LED to show it is rspoinding to TX.  The PTT Input LED turns on and off following the PTT_Input wire state, it is unaware of any dopwnstream logic.  Flashing the output LEDs is intended to confirm which PTT output is commanded and that happens at the end of the decision logic chain so there is high confidence the correct hardware port is actually operating.  Note that if the USB connection is lost and there was a band active beforehand, any new PTT event will still be processsed for that band.  This is desireable in the case there is a T/R relay at a renote preamp, you do not want to Tx into the preamp.
 
-2 PCBs have been designed and I ordered 20 sets today along with key hardware parts for them.   Here is the USB Decoder board:
+20 Jan 2025 - 2 PCBs have been designed and I ordered 20 sets today along with key hardware parts for them.   Here is the USB Decoder board:
 
 ![image](https://github.com/user-attachments/assets/8823bcb0-a3c8-470e-98d7-2823973be588)
 
