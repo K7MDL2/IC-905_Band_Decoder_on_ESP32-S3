@@ -11,6 +11,7 @@
 
 #include "freertos/FreeRTOS.h"  // need for time delay function
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "LED_Control.h"
 
 extern uint32_t led_bright_level;
@@ -136,7 +137,7 @@ extern uint8_t band;
         ESP_LOGI("LED", "LED Bootup Lamp Test");
         vTaskDelay(pdMS_TO_TICKS(1000));  // Short lamp test, with all on.
 
-        for (int i=0; i< 7; i++) {  // Leave the Pwr_On LED lit  Jsut do bands and PTT In
+        for (int i=0; i< 8; i++) { // Turn them all off for end of lamp test
             ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) i, LEDC_OFF_DUTY));
             ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, (ledc_channel_t) i)); // Update duty to apply the new value
         }
@@ -146,9 +147,12 @@ extern uint8_t band;
     void led_brightness(void) {  //  Bands PTT, Bands 1-6 and PwrOn 
         if (band == 0) return;   // do nto have a valid band from radio yet, wait.
         
-        // All LEDS are turning on and off by their durty cycle settings.
-        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
-        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH)); // Keep the power on led lit
+        // All LEDS are turning on and off by their duty cycle settings.
+        if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0)
+        {
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
+            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH)); // Keep the power on led lit
+        }
         
         for (int i=0; i< 7; i++) {  // Adjust the bands level) .  
             ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) i, led_bright_level));
@@ -160,4 +164,70 @@ extern uint8_t band;
             }
         }
     }
+
+    void PowerOn_LED(uint8_t state)
+    {   
+        static uint64_t flash_timer = esp_timer_get_time();
+        uint64_t flash_time = 900;  // in ms
+        uint8_t flash_on = 0;
+        bool update_LED = false;
+
+        switch (state) {
+            case 2:    // Flash the power light when we lose USB connection to the radio
+            {
+                // Flash power light on 
+                if (esp_timer_get_time() >= flash_timer + flash_time *1000) {  
+                    if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0) {
+                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, LEDC_OFF_DUTY));    
+                        ESP_LOGI("PowerOn_LED", "Flash LED OFF");
+                    } else {
+                       ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
+                       ESP_LOGI("PowerOn_LED", "Flash LED ON");
+                    }
+                    flash_timer = esp_timer_get_time();
+                    update_LED = true;
+                }
+                break;
+            }
+
+            case 1: // Turn on power light when we have a valid USB connection to the radio
+                    if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) == 0) //  do not turn on if it is already on
+                    {
+                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
+                        update_LED = true;
+                    }
+                    break;
+            
+            case 0: // Turn off power LED  
+            default: 
+                    if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0) //  do not turn oFF if it is already off
+                    {
+                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, LEDC_OFF_DUTY));
+                        update_LED = true;
+                    }
+        }
+        if (update_LED) {
+            ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH)); // Update duty to apply the new value
+            update_LED = false;
+        }
+    }
 #endif
+
+void flash_PTT_LED(bool state, ledc_channel_t channel) 
+{
+    static uint64_t flash_timer = esp_timer_get_time();
+    uint64_t flash_time = 500;  // 500 ms.
+    uint8_t flash_on = 0;
+  
+    if (esp_timer_get_time() >= flash_timer + flash_time *1000) {  
+        if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0) {
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, LEDC_OFF_DUTY));    
+            ESP_LOGI("flash_PTT_LED", "Flash LED OFF");
+        } else {
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, led_bright_level));  // Turn on and Dim the LED
+            ESP_LOGI("flash_PTT_LED", "Flash LED ON");
+        }
+        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, channel)); // Update duty to apply the new value
+        flash_timer = esp_timer_get_time();
+    }
+}

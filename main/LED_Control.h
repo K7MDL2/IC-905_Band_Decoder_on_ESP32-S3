@@ -56,5 +56,7 @@
 
     void ledc_init(void);
     void led_brightness(void);
+    void PowerOn_LED(uint8_t state);
+    void flash_PTT_LED(bool state, ledc_channel_t channel) ;
 
 #endif

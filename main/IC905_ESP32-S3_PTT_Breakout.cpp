@@ -341,6 +341,8 @@ static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_
         break;
     case CDC_ACM_HOST_DEVICE_DISCONNECTED:
         ESP_LOGI(TAG, "Device suddenly disconnected");
+        USBH_connected = false;
+        PowerOn_LED(2);  // Flash Power On LED if no radio connection
         ESP_ERROR_CHECK(cdc_acm_host_close(event->data.cdc_hdl));
         xSemaphoreGive(device_disconnected_sem);
         break;
@@ -422,6 +424,12 @@ static void usb_loop_task(void *arg)
                     last_level = led_bright_level;
                 }
             }
+            
+            if (!USBH_connected)
+                PowerOn_LED(2);  // Flash Power On LED if no radio connection
+            else
+                PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
+
         #endif // USE_LEDS
 
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -1205,16 +1213,20 @@ void setup_IO(void)
 //int app_main(void)   // for .c files
 extern "C" void app_main(void)  // for .cpp files
 {
+    USBH_connected = false;
+
     ESP_LOGI(TAG, "IC-905 USB Band Decoder and PTT Breakout - K7MDL Jan 2025");
 
     setup_IO();
 
     #ifdef USE_LEDS
         ledc_init();    
+        PowerOn_LED(2);  // set power LED to FLASH until we have a valid USB connection to radio
     #else  // USE RGB pin 48 or external LED via GPIO for the red PTT in LED on pin 47
         gpio_reset_pin(GPIO_NUM_48);
         gpio_set_direction(GPIO_NUM_48, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
         gpio_set_level(GPIO_NUM_48, 1);  // Turn it Off.
+        
     #endif 
 
     #ifdef USB_PC
@@ -1428,6 +1440,9 @@ extern "C" void app_main(void)  // for .cpp files
         #endif
 
         init_done = 1;
+        #ifdef USE_LEDS
+            //PowerOn_LED(1);  // set power LED to solid on state when we have a good radio connection
+        #endif
 
         ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
         // usb_loop_task() is where our program runs within now.  
