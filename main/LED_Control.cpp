@@ -168,8 +168,7 @@ extern uint8_t band;
     void PowerOn_LED(uint8_t state)
     {   
         static uint64_t flash_timer = esp_timer_get_time();
-        uint64_t flash_time = 900;  // in ms
-        uint8_t flash_on = 0;
+        uint64_t flash_time = 500;  // in ms
         bool update_LED = false;
 
         switch (state) {
@@ -215,19 +214,38 @@ extern uint8_t band;
 
 void flash_PTT_LED(bool state, ledc_channel_t channel) 
 {
-    static uint64_t flash_timer = esp_timer_get_time();
-    uint64_t flash_time = 500;  // 500 ms.
-    uint8_t flash_on = 0;
+    static uint64_t flash_timer = 0; // = esp_timer_get_time();
+    uint64_t flash_time = 300;  // 300 ms.
+    bool update_LED = false;
   
-    if (esp_timer_get_time() >= flash_timer + flash_time *1000) {  
-        if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0) {
-            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, LEDC_OFF_DUTY));    
-            ESP_LOGI("flash_PTT_LED", "Flash LED OFF");
-        } else {
-            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, led_bright_level));  // Turn on and Dim the LED
-            ESP_LOGI("flash_PTT_LED", "Flash LED ON");
+    if (state == 1)  // flash LED channel
+    {
+        if (esp_timer_get_time() >= flash_timer + flash_time *1000) {  
+            if (ledc_get_duty(LEDC_MODE, channel) > 0) {
+                ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, LEDC_OFF_DUTY));    
+                //ESP_LOGI("flash_PTT_LED", "Flash LED OFF");
+            } else {
+                ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, led_bright_level));  // Turn on and Dim the LED
+                //ESP_LOGI("flash_PTT_LED", "Flash LED ON");
+            }        
+            flash_timer = esp_timer_get_time();
+            update_LED = true;
         }
+    }
+    
+    if (state == 0)  // Turn LED channel on Solid
+    {
+        //ESP_LOGI("flash_PTT_LED", "Read LED state = %lu", ledc_get_duty(LEDC_MODE, channel));
+        if (ledc_get_duty(LEDC_MODE, channel) == 0) {
+            //ESP_LOGI("flash_PTT_LED", "End Flashing, Turn band LED back to solid ON state");
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, channel, led_bright_level));  // Turn on and Dim the LED
+            update_LED = true;
+        }
+    }
+    
+    if (update_LED)   // update to take effect
+    {
         ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, channel)); // Update duty to apply the new value
-        flash_timer = esp_timer_get_time();
+        update_LED = false;
     }
 }

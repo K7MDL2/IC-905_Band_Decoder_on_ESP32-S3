@@ -124,7 +124,7 @@ bool USBH_connected = false;
 extern uint16_t background_color;
 uint64_t frequency = 0;
 extern bool update_radio_settings_flag;
-static const char *TAG = "USB-CDC";
+static const char *TAG = "MAIN";
 static SemaphoreHandle_t device_disconnected_sem;
 uint8_t *r = read_buffer;
 bool msg_done_flag;
@@ -212,7 +212,7 @@ static void gpio_PTT_Input(void* arg)
     for(;;) {
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
             PTT = (uint8_t) gpio_get_level((gpio_num_t) io_num);  // Invert for buffer
-            ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
+            //ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
             PTT_Output(band, PTT);
             display_PTT(PTT, false);
             
@@ -220,9 +220,11 @@ static void gpio_PTT_Input(void* arg)
                 if (PTT) {
                     ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
                     //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
+                    flash_PTT_LED(1, (ledc_channel_t) band);
                 } else {
                     ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
                     //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
+                    flash_PTT_LED(0, (ledc_channel_t) band);
                 }
                 // Update duty to apply the new value
                 ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
@@ -306,7 +308,7 @@ static void gpio_PTT_Input(void* arg)
  */
 static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
 {
-    ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
+    //ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
 
     if (pData[data_len-1] == 0xFD)
     {
@@ -388,7 +390,7 @@ static void usb_loop_task(void *arg)
     static uint32_t last_level = 0;  // remember the last LED brightness level
     while (1) {  
         if (get_ext_mode_flag) {
-            ESP_LOGI(TAG, "***Get extended mode info from radio");
+            //ESP_LOGI(TAG, "***Get extended mode info from radio");
             sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
             get_ext_mode_flag = false;
         }
@@ -420,19 +422,31 @@ static void usb_loop_task(void *arg)
                     if (led_bright_level > 8100)
                         led_bright_level = 8100;  // API will crash if exceed max resolution
                     led_brightness();  // we now have a valid band so the leds get set correctly
-                    ESP_LOGI(TAG, "Updated LED band brightness level to %lu of 0-8100", led_bright_level);
+                    //ESP_LOGI(TAG, "Updated LED band brightness level to %lu of 0-8100", led_bright_level);
                     last_level = led_bright_level;
                 }
             }
             
-            if (!USBH_connected)
+            if (!USBH_connected && init_done)
                 PowerOn_LED(2);  // Flash Power On LED if no radio connection
             else
                 PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
+            
+            vTaskDelay(pdMS_TO_TICKS(100));
+
+            if (PTT && band && init_done)  // only flash for valid band (not band 0)
+            {
+                flash_PTT_LED(1, (ledc_channel_t) band);
+            }
+            
+            if (!PTT && band && init_done)  // only flash for valid band (not band 0)
+            {
+                flash_PTT_LED(0, (ledc_channel_t) band);
+            }
 
         #endif // USE_LEDS
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -519,7 +533,7 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
     int8_t msg_len;
     uint8_t req[50] = { START_BYTE, START_BYTE, radio_address, CONTROLLER_ADDRESS };
 
-    ESP_LOGI("sendCatRequest", "USBH_connected = %d", USBH_connected);
+    //ESP_LOGI("sendCatRequest", "USBH_connected = %d", USBH_connected);
 
     for (msg_len = 0; msg_len <= cmd_List[cmd_num].cmdData[0]; msg_len++)  // copy in 1 or more command bytes
         req[msg_len + 4] = cmd_List[cmd_num].cmdData[msg_len + 1];
@@ -552,7 +566,9 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
             }
             loop_ct = 0;
             sending = 1;
-            ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d  END TX MSG, msg_len = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000), msg_len);
+            //ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d  END TX MSG, msg_len = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000), msg_len);
+            cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000);  // send our message out
+
             vTaskDelay(pdMS_TO_TICKS(10));
             sending = 0;
         } 
@@ -614,8 +630,8 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
 
         prev_band = band;
     }
-
-    ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  datalen = %d   btConnected %d   USBH_connected %d  BLE_connected %d  radio_address %X", frequency, band, data_len, btConnected, USBH_connected, BLE_connected, radio_address);
+    ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", frequency, band, radio_address);
+    //ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  datalen = %d   btConnected %d   USBH_connected %d  BLE_connected %d  radio_address %X", frequency, band, data_len, btConnected, USBH_connected, BLE_connected, radio_address);
     // On exit from this function we have a new displayed frequency that has XVTR_Offset added, if any.
 }
 
@@ -709,7 +725,7 @@ void GPIO_Out(uint8_t pattern)
 
 void PTT_Output(uint8_t band, bool PTT_state)
 {
-    ESP_LOGI("PTT_Output:", " Band %s   PTT_state %d", bands[band].band_name, PTT_state);
+    ESP_LOGI("PTT_Output", " Band %s   ***** PTT_state %d *****", bands[band].band_name, PTT_state);
     switch (band)
     {
         case  DUMMY     : GPIO_PTT_Out(DECODE_DUMMY_PTT,    false);     break;   //Dummy Band
@@ -817,7 +833,7 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                         //for (k = 0; k < msg_len; k++)
                         //    CIV_data[k] = read_buffer[data_start_idx + k];
 
-                        ESP_LOGI("processCatMessages", "cmd = %X  data_start_idx = %d  data_len = %d", cmd_List[cmd_num].cmdData[1], data_start_idx, data_len);
+                        //ESP_LOGI("processCatMessages", "cmd = %X  data_start_idx = %d  data_len = %d", cmd_List[cmd_num].cmdData[1], data_start_idx, data_len);
 
                         if (cmd_num >= End_of_Cmd_List - 1) 
                         {
@@ -826,7 +842,7 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                         } 
                         else 
                         {
-                            ESP_LOGI("processCatMessages", "Call CIV_Action");
+                            //ESP_LOGI("processCatMessages", "Call CIV_Action");
                             CIV_Action(cmd_num, data_start_idx, data_len, msg_len, read_buffer);
                         }
                     }  // is controller address

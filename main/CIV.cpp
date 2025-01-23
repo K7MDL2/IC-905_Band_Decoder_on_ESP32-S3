@@ -422,7 +422,7 @@ void setTime(int hr, int min, int sec, int mday, int month, int yr)  // modifed 
     //tm.tm_isdst = isDst;  // 1 or 0
     tm.tm_isdst = 0;  // 1 or 0  // setting to 0 for UTC only use
     t = mktime(&tm);
-    ESP_LOGI(TAG, "Setting time: %s", asctime(&tm));
+    //ESP_LOGI(TAG, "Setting time: %s", asctime(&tm));
     //char *myDate0 = ctime(&t);
     //ESP_LOGI(TAG, "0-myDate: %s", myDate0);
 }
@@ -439,7 +439,7 @@ void setTime(int hr, int min, int sec, int mday, int month, int yr)  // modifed 
 //
 
 //#define DBG_CIV1  // command parser entry
-#define DBG_CIV2  // just do summary print
+//#define DBG_CIV2  // just do summary print
 
 void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer) 
 { 
@@ -490,10 +490,10 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
     case CIV_C_MOD_READ:
     case CIV_C_MOD1_SEND:
     case CIV_C_MOD_SEND: {
-        ESP_LOGI("CIV_Action MOD_SEND", "Mode Length = %d", data_len);
+        //ESP_LOGI("CIV_Action MOD_SEND", "Mode Length = %d", data_len);
         // command CIV_C_MODE_READ received
         radio_mode = rd_buffer[data_start_idx];  // CIVresultL.value/100;
-        ESP_LOGI("CIV_Action MOD_SEND", "Mode in HEX: %X", radio_mode);
+        //ESP_LOGI("CIV_Action MOD_SEND", "Mode in HEX: %X", radio_mode);
         
         uint8_t i;
         // look up the bcd value in our modelist table to see what radio mode it is 
@@ -515,14 +515,12 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         //}
 
         // This command info lacks data mode status so have to use it to trigger extended mode info
-        ESP_LOGI("CIV Mode", "***Set flag to get extended mode data after a mode was message received");
         #ifdef GET_EXT_MODE_INFO
+          ESP_LOGI("CIV Mode", "***Set flag to get extended mode data after a mode was message received");
           get_ext_mode_flag = true;
         #endif
         
-        ESP_LOGI("CIV_Action MOD_SEND", "CIV_Action: CI-V Returned Mode: %s", modeList[i].mode_label);  
-        ESP_LOGI("CIV_Action MOD_SEND", "  Mode Index: %d", i); 
-        ESP_LOGI("CIV_Action MOD_SEND", "  Filter: %s", FilStr[radio_filter]);    
+        //ESP_LOGI("CIV_Action MOD_SEND", "CIV_Action: CI-V Returned Mode: %s  Mode Index: %d  Filter: %s", modeList[i].mode_label, i, FilStr[radio_filter]);    
         break;
     }
 
@@ -675,7 +673,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         else
         {
           setTime(_hr,_min,_sec,_day,_month,_yr);  // display UTC time
-          ESP_LOGI(TAG, "UTC Time: %d:%d:%d  %d/%d/%d",_hr,_min,_sec,_month,_day,_yr); 
+          ESP_LOGI(TAG, "UTC Time: %d:%d:%d  %d/%d/20%d",_hr,_min,_sec,_month,_day,_yr); 
         }
         break;
       /*
