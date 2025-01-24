@@ -8,7 +8,24 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-Update 21 Jan 2025: PCBs are done and have shipped today.  Should see them in a few days.   Added code to flash the Power_ON LED every 1 second when there is no valid USB connection to the radio.  Also created a new function to flash PTT LEDs.  Not using it yet.  Will fl;ash teh activ e band LED to show it is rspoinding to TX.  The PTT Input LED turns on and off following the PTT_Input wire state, it is unaware of any dopwnstream logic.  Flashing the output LEDs is intended to confirm which PTT output is commanded and that happens at the end of the decision logic chain so there is high confidence the correct hardware port is actually operating.  Note that if the USB connection is lost and there was a band active beforehand, any new PTT event will still be processsed for that band.  This is desireable in the case there is a T/R relay at a renote preamp, you do not want to Tx into the preamp.
+Update 23 Jan 2025: 20 sets of PCBs arrived today early.  
+
+![20250123_123705](https://github.com/user-attachments/assets/439ef68b-d986-4bab-92c9-cd592de17d4c)
+
+Assembled and tested the main board.  Only missing 1 4-pin connector and resettable fuse for 24V option, and 1 resistor network for the LEDs.  Used an axial resistor poked into the holes to test the LEDs.  Everything is working as designed.  The missing parts should arrive Jan 25th.  Assembled the Remote Decoder board minus the chips and edge connectors which are arriving Jan 25th.  12V and 5V power and LED working.
+
+![20250123_183641](https://github.com/user-attachments/assets/5e3937df-7ab0-4eae-bef5-57cf71789798)
+
+![20250123_183439](https://github.com/user-attachments/assets/d1f0d048-ca44-4bd0-9cd6-5f118142f0a2)
+
+![20250123_183456](https://github.com/user-attachments/assets/e8639d9b-7787-4a28-b524-085644753722)
+
+![20250123_183544](https://github.com/user-attachments/assets/ea8b9c42-d7e5-4be6-9553-d8e466344001)
+
+Updated the firmare for the new GPIO pin assignments.  #define PROTOTYPE switches back to the prototype build configuration.  The Hammond enclosure and the otehr parts shoudl be here in 2 days.  IN theory teh PCB shoudl slide right in perfect.  I have some 1/2" long LED light pipes to try out so I mounted the LEDs onto the PCB.
+
+
+21 Jan 2025: PCBs are done and have shipped today.  Should see them in a few days.   Added code to flash the Power_ON LED every 1 second when there is no valid USB connection to the radio.  Also created a new function to flash PTT LEDs.  Not using it yet.  Will fl;ash teh activ e band LED to show it is rspoinding to TX.  The PTT Input LED turns on and off following the PTT_Input wire state, it is unaware of any dopwnstream logic.  Flashing the output LEDs is intended to confirm which PTT output is commanded and that happens at the end of the decision logic chain so there is high confidence the correct hardware port is actually operating.  Note that if the USB connection is lost and there was a band active beforehand, any new PTT event will still be processsed for that band.  This is desireable in the case there is a T/R relay at a renote preamp, you do not want to Tx into the preamp.
 
 20 Jan 2025 - 2 PCBs have been designed and I ordered 20 sets today along with key hardware parts for them.   Here is the USB Decoder board:
 
