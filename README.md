@@ -8,7 +8,9 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-Update 23 Jan 2025: 20 sets of PCBs arrived today early.  
+24 Jan 2024 - Uploaded full BOMs and PCB gerber files and schematic PDFs.
+
+23 Jan 2025 - 20 sets of PCBs arrived today early.  
 
 ![20250123_123705](https://github.com/user-attachments/assets/439ef68b-d986-4bab-92c9-cd592de17d4c)
 
