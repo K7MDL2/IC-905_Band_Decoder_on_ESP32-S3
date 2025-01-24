@@ -16,26 +16,10 @@ Assembled and tested the main board.  Only missing 1 4-pin connector and resetta
 
 ![20250123_183641](https://github.com/user-attachments/assets/5e3937df-7ab0-4eae-bef5-57cf71789798)
 
-![20250123_183439](https://github.com/user-attachments/assets/d1f0d048-ca44-4bd0-9cd6-5f118142f0a2)
-
-![20250123_183456](https://github.com/user-attachments/assets/e8639d9b-7787-4a28-b524-085644753722)
-
-![20250123_183544](https://github.com/user-attachments/assets/ea8b9c42-d7e5-4be6-9553-d8e466344001)
-
-Updated the firmare for the new GPIO pin assignments.  #define PROTOTYPE switches back to the prototype build configuration.  The Hammond enclosure and the otehr parts shoudl be here in 2 days.  IN theory teh PCB shoudl slide right in perfect.  I have some 1/2" long LED light pipes to try out so I mounted the LEDs onto the PCB.
-
-
-21 Jan 2025: PCBs are done and have shipped today.  Should see them in a few days.   Added code to flash the Power_ON LED every 1 second when there is no valid USB connection to the radio.  Also created a new function to flash PTT LEDs.  Not using it yet.  Will fl;ash teh activ e band LED to show it is rspoinding to TX.  The PTT Input LED turns on and off following the PTT_Input wire state, it is unaware of any dopwnstream logic.  Flashing the output LEDs is intended to confirm which PTT output is commanded and that happens at the end of the decision logic chain so there is high confidence the correct hardware port is actually operating.  Note that if the USB connection is lost and there was a band active beforehand, any new PTT event will still be processsed for that band.  This is desireable in the case there is a T/R relay at a renote preamp, you do not want to Tx into the preamp.
-
-20 Jan 2025 - 2 PCBs have been designed and I ordered 20 sets today along with key hardware parts for them.   Here is the USB Decoder board:
-
-![image](https://github.com/user-attachments/assets/8823bcb0-a3c8-470e-98d7-2823973be588)
-
-The 2nd board is an optional general purpose Remote BCD Decoder intended to extend the USB Decoder's 12 outputs using common 7-conductor rotator cable
-
-![image](https://github.com/user-attachments/assets/c43eb553-e9ce-426f-8317-e2de99b5d294)
+Updated the firmare for the new GPIO pin assignments.  The Hammond enclosure and the other parts should be here in 2 days  I have some 1/2" long LED light pipes coming to try out so I mounted the LEDs onto the PCB.
 
 https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/PCB-Version
+
 
 Below are recent Dev and prptotype Wiki page links:
 
