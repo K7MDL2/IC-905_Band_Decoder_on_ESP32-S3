@@ -34,22 +34,37 @@ enum band_idx { DUMMY,
 
 #define GPIO_PTT_INPUT          GPIO_NUM_1   // 
 
-// gpio pins 0, 3, 45, and 46 are CPU option "strapping pins" and should not be used
-// pins 8 and 9 reserved for future i2c bus usage
-#define GPIO_BAND_OUTPUT_144    GPIO_NUM_5    // default Voltage 0V
-#define GPIO_BAND_OUTPUT_430    GPIO_NUM_6    // default Voltage 0V
-#define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7    // default Voltage 0V
-#define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // default Voltage 0V
-#define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // default Voltage 0V
-#define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // default Voltage 0V
+#ifdef PROTOTYPE
+    // gpio pins 0, 3, 45, and 46 are CPU option "strapping pins" and should not be used
+    // pins 8 and 9 reserved for future i2c bus usage
+    #define GPIO_BAND_OUTPUT_144    GPIO_NUM_5    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_430    GPIO_NUM_6    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_2300   GPIO_NUM_10   // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_5600   GPIO_NUM_11   // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_10G    GPIO_NUM_12   // default Voltage 0V
 
-#define GPIO_PTT_OUTPUT_144     GPIO_NUM_13   // default Voltage 0V
-#define GPIO_PTT_OUTPUT_430     GPIO_NUM_14   // default Voltage 0V
-#define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // default Voltage 0V
-#define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // default Voltage 0V
-#define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // Also UART1 TX (not used)
-#define GPIO_PTT_OUTPUT_10G     GPIO_NUM_38   // Also UART1 RX (not used)  moved from 18 to make way for the ADC and free up 8/9 for i2c in future.
+    #define GPIO_PTT_OUTPUT_144     GPIO_NUM_13   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_430     GPIO_NUM_14   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_1200    GPIO_NUM_15   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_2300    GPIO_NUM_16   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_5600    GPIO_NUM_17   // Also UART1 TX (not used)
+    #define GPIO_PTT_OUTPUT_10G     GPIO_NUM_38   // Also UART1 RX (not used)  moved from 18 to make way for the ADC and free up 8/9 for i2c in future.
+#else
+    #define GPIO_BAND_OUTPUT_144    GPIO_NUM_5    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_430    GPIO_NUM_6    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_1200   GPIO_NUM_7    // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_2300   GPIO_NUM_15   // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_5600   GPIO_NUM_16   // default Voltage 0V
+    #define GPIO_BAND_OUTPUT_10G    GPIO_NUM_17   // default Voltage 0V
 
+    #define GPIO_PTT_OUTPUT_144     GPIO_NUM_18   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_430     GPIO_NUM_10   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_1200    GPIO_NUM_11   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_2300    GPIO_NUM_12   // default Voltage 0V
+    #define GPIO_PTT_OUTPUT_5600    GPIO_NUM_13   // Also UART1 TX (not used)
+    #define GPIO_PTT_OUTPUT_10G     GPIO_NUM_14   // Also UART1 RX (not used)  moved from 18 to make way for the ADC and free up 8/9 for i2c in future.
+#endif
 // *************************************************************************************************************
 //
 //   Assign DECODER pattern to each band as needed

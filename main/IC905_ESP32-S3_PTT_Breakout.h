@@ -46,6 +46,9 @@
 
 //#define ATOMS3                // Compile with setting for the M5Stack M5AtomS3 which features a color LCD
 
+//#define PROTOTYPE           // PIN and ADC assignments unique to the prototype build
+
+
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values
 // --------------------------------------------------------------------------------------------------------
@@ -101,9 +104,15 @@
 //#define SEE_RAW_RX // see raw hex messages from radio
 //#define SEE_RAW_TX // see raw hex messages from radio
 
-// For ADC to read the LED brightness pot
-#define ADC2_CHAN0          ADC_CHANNEL_7
-#define ADC_ATTEN           ADC_ATTEN_DB_12
+#ifdef PROTOTYPE
+  // For ADC to read the LED brightness pot
+  #define ADC2_CHAN0          ADC_CHANNEL_7
+  #define ADC_ATTEN           ADC_ATTEN_DB_12
+#else
+  // For ADC to read the LED brightness pot
+  #define ADC1_CHAN0          ADC_CHANNEL_3
+  #define ADC_ATTEN           ADC_ATTEN_DB_12
+#endif
 
 struct Bands {
   char band_name[6];    // Friendly name or label.  Default here but can be changed by user.

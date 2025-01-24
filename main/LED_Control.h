@@ -13,8 +13,6 @@
 
 #ifdef USE_LEDS
 
-    #define LED_DIMMER_ADJ_PIN 18  // do not use 8 and 9, they are used for i2c in future. I
-    // if using LEDs then OLED is not connected, these are free as gpio but even with a LCD a adj pot could still be useful
 
     #define LED_TIMER_PTT               LEDC_TIMER_0  // Flash cadence used for when PTT is active.
     #define LED_TIMER_PWR_ON            LEDC_TIMER_1  // Flash cadence used for when PTT is active.
@@ -22,16 +20,35 @@
     
     #define LEDC_MODE                   LEDC_LOW_SPEED_MODE
 
-    // 45, 46, 0 and 3 are "strapping pins"  
-    //#define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_48)     // Onboard RGB LED for testing
-    #define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_47)     // PCB LED for PTT IN
-    #define LEDC_OUTPUT_144_IO         (GPIO_NUM_35)     // band 144 Active - Flash for PTT active on this band
-    #define LEDC_OUTPUT_430_IO         (GPIO_NUM_37)     // Skipping pin 38 as some boards use it for the internal RGB
-    #define LEDC_OUTPUT_1200_IO        (GPIO_NUM_39)
-    #define LEDC_OUTPUT_2300_IO        (GPIO_NUM_41)
-    #define LEDC_OUTPUT_5600_IO        (GPIO_NUM_2)
-    #define LEDC_OUTPUT_10G_IO         (GPIO_NUM_42)
-    #define LEDC_OUTPUT_PWR_ON_IO      (GPIO_NUM_40)     // 43 and 44 are UART0 pins
+    #ifdef PROTOTYPE
+        #define LED_DIMMER_ADJ_PIN 18  // do not use 8 and 9, they are used for i2c in future. I
+        // if using LEDs then OLED is not connected, these are free as gpio but even with a LCD a adj pot could still be useful
+
+        // 45, 46, 0 and 3 are "strapping pins"  
+        //#define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_48)     // Onboard RGB LED for testing
+        #define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_47)     // PCB LED for PTT IN
+        #define LEDC_OUTPUT_144_IO         (GPIO_NUM_35)     // band 144 Active - Flash for PTT active on this band
+        #define LEDC_OUTPUT_430_IO         (GPIO_NUM_37)     // Skipping pin 38 as some boards use it for the internal RGB
+        #define LEDC_OUTPUT_1200_IO        (GPIO_NUM_39)
+        #define LEDC_OUTPUT_2300_IO        (GPIO_NUM_41)
+        #define LEDC_OUTPUT_5600_IO        (GPIO_NUM_2)
+        #define LEDC_OUTPUT_10G_IO         (GPIO_NUM_42)
+        #define LEDC_OUTPUT_PWR_ON_IO      (GPIO_NUM_40)     // 43 and 44 are UART0 pins
+    #else  // PCB V1
+        #define LED_DIMMER_ADJ_PIN 4  // do not use 8 and 9, they are used for i2c in future. I
+        // if using LEDs then OLED is not connected, these are free as gpio but even with a LCD a adj pot could still be useful
+
+        // 45, 46, 0 and 3 are "strapping pins"  
+        //#define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_48)     // Onboard RGB LED for testing
+        #define LEDC_PTT_IN_OUTPUT_IO      (GPIO_NUM_35)     // PCB LED for PTT IN
+        #define LEDC_OUTPUT_144_IO         (GPIO_NUM_36)     // band 144 Active - Flash for PTT active on this band
+        #define LEDC_OUTPUT_430_IO         (GPIO_NUM_37)     // Skipping pin 38 as some boards use it for the internal RGB
+        #define LEDC_OUTPUT_1200_IO        (GPIO_NUM_38)
+        #define LEDC_OUTPUT_2300_IO        (GPIO_NUM_39)
+        #define LEDC_OUTPUT_5600_IO        (GPIO_NUM_40)
+        #define LEDC_OUTPUT_10G_IO         (GPIO_NUM_41)
+        #define LEDC_OUTPUT_PWR_ON_IO      (GPIO_NUM_42)     // 43 and 44 are UART0 pins
+    #endif
 
     #define LEDC_PTT_IN_OUTPUT_CH      (LEDC_CHANNEL_0)  // PTT Input
     #define LEDC_OUTPUT_144_CH         (LEDC_CHANNEL_1)  // band 144 Active - Flash for PTT active on this band
@@ -41,7 +58,7 @@
     #define LEDC_OUTPUT_5600_CH        (LEDC_CHANNEL_5)
     #define LEDC_OUTPUT_10G_CH         (LEDC_CHANNEL_6)
     #define LEDC_OUTPUT_PWR_ON_CH      (LEDC_CHANNEL_7)
-
+    
     #define LEDC_DUTY_RES              LEDC_TIMER_13_BIT // Set duty resolution to 13 bits.  2 ** 13) = 8192.  Duty cycle is 2x duty res so 8192
     #define LEDC_ON_DUTY               (LED_BRIGHT_LEVEL) // for 13 bit 50% is: (2 ** 13) * 50% = 4096.  Higher is brighter
     #define GREEN_DIM_FACTOR           (3) // Green LED uses lower voltage so has higher current when using same size resistors as blue and red LEDs.

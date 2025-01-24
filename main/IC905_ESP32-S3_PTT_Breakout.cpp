@@ -145,15 +145,27 @@ static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_att
 static void adc_calibration_deinit(adc_cali_handle_t handle);
 uint8_t radio_address_received = 0;
 
-// ADC setup
-adc_cali_handle_t adc2_cali_chan0_handle = NULL;
-bool do_calibration2 = adc_calibration_init(ADC_UNIT_2, ADC2_CHAN0, ADC_ATTEN, &adc2_cali_chan0_handle);
+#ifdef PROTOTYPE
+    // ADC setup
+    adc_cali_handle_t adc2_cali_chan0_handle = NULL;
+    bool do_calibration2 = adc_calibration_init(ADC_UNIT_2, ADC2_CHAN0, ADC_ATTEN, &adc2_cali_chan0_handle);
 
-adc_oneshot_unit_handle_t adc2_handle;
-adc_oneshot_unit_init_cfg_t init_config2 = {
-    .unit_id = ADC_UNIT_2,
-    .ulp_mode = ADC_ULP_MODE_DISABLE,
-};
+    adc_oneshot_unit_handle_t adc2_handle;
+    adc_oneshot_unit_init_cfg_t init_config2 = {
+        .unit_id = ADC_UNIT_2,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+#else
+    // ADC setup
+    adc_cali_handle_t adc1_cali_chan0_handle = NULL;
+    bool do_calibration1 = adc_calibration_init(ADC_UNIT_1, ADC1_CHAN0, ADC_ATTEN, &adc1_cali_chan0_handle);
+
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_unit_init_cfg_t init_config1 = {
+        .unit_id = ADC_UNIT_1,
+        .ulp_mode = ADC_ULP_MODE_DISABLE,
+    };
+#endif
 
 uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 
@@ -401,22 +413,32 @@ static void usb_loop_task(void *arg)
         #else 
             vTaskDelay(pdMS_TO_TICKS(10));
 
-            // Read ADC1 Ch7 (pin 8) for LED brightness POT position.
-            ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
-            //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
-            if (do_calibration2) {
-                ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
-                //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
-            }
+            #ifdef PROTOTYPE
+                // Read ADC2 for LED brightness POT position.
+                ESP_ERROR_CHECK(adc_oneshot_read(adc2_handle, ADC2_CHAN0, &adc_raw[0][0]));
+                //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_2 + 1, ADC2_CHAN0, adc_raw[0][0]);
+                if (do_calibration2) {
+                    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc2_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
+                    //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_2 + 1, ADC2_CHAN0, voltage[0][0]);
+                }
+                //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
+                // Invert the ADC on the prototype board because the pot power and ground leads are reversed    
+                led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
+            #else
+                // Read ADC1 Ch_3 (pin 4) for LED brightness POT position.
+                ESP_ERROR_CHECK(adc_oneshot_read(adc1_handle, ADC1_CHAN0, &adc_raw[0][0]));
+                //ESP_LOGI(TAG, "ADC%d Channel[%d] Raw Data: %d", ADC_UNIT_1 + 1, ADC1_CHAN0, adc_raw[0][0]);
+                if (do_calibration1) {
+                    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc1_cali_chan0_handle, adc_raw[0][0], &voltage[0][0]));
+                    //ESP_LOGI(TAG, "ADC%d Channel[%d] Cali Voltage: %d mV", ADC_UNIT_1 + 1, ADC1_CHAN0, voltage[0][0]);
+                }
+                led_bright_level= adc_raw[0][0] *2;  // 12 bits ADC output range. 
+            #endif
 
-            // invert the ADC because the pot power and ground leads are reversed due board edge ground trace being nearby. Can change in PCB
-            led_bright_level= (8192 - (adc_raw[0][0] *2)) ;  // 12 bits ADC output range. 
-            //  Multiply by 2 to get 8192 for Ledc duty res of 13 bits. Keep < 8190.
-            
             vTaskDelay(pdMS_TO_TICKS(100));
             
-            if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
-                if ((led_bright_level < (last_level - 40)) || (led_bright_level > (last_level + 40))) {
+            if (1) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
+                if ((led_bright_level < (last_level - 20)) || (led_bright_level > (last_level + 20))) {
                     if (led_bright_level < 1)
                         led_bright_level = 0;  // API will crash if exceed max resolution 
                     if (led_bright_level > 8100)
@@ -1210,15 +1232,27 @@ void setup_IO(void)
 
     // Set up ADC for LED brightness dimming
     
-    //-------------ADC2 Init---------------//
-    ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config2, &adc2_handle));
+    #ifdef PROTOTYPE
+        //-------------ADC2 Init---------------//
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config2, &adc2_handle));
 
-    //-------------ADC2 Config---------------//
-    adc_oneshot_chan_cfg_t config = {
-        .atten = ADC_ATTEN,
-        .bitwidth = ADC_BITWIDTH_DEFAULT,
-    };
-    ESP_ERROR_CHECK(adc_oneshot_config_channel(adc2_handle, ADC2_CHAN0, &config));
+        //-------------ADC2 Config---------------//
+        adc_oneshot_chan_cfg_t config = {
+            .atten = ADC_ATTEN,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc2_handle, ADC2_CHAN0, &config));
+    #else    
+        //-------------ADC1 Init---------------//
+        ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config1, &adc1_handle));
+        
+        //-------------ADC1 Config---------------//
+        adc_oneshot_chan_cfg_t config = {
+            .atten = ADC_ATTEN,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+        ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC1_CHAN0, &config));
+    #endif
 }
 
 /**
