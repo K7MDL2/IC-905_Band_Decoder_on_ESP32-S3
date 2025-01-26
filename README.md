@@ -8,15 +8,16 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-24 Jan 2024 - Uploaded full BOMs and PCB gerber files and schematic PDFs.
-
-23 Jan 2025 - 20 sets of PCBs arrived today early.  
+25 Jan 2025 -  Receieved remaining needed parts except for a pair of 3-to-8 line decoder chips on the Remote board I forgot to order.  The main concern was the pluggable terminal blocks, which have captivation screws, woudl properly fit 
 
 ![20250123_123705](https://github.com/user-attachments/assets/439ef68b-d986-4bab-92c9-cd592de17d4c)
 
-Assembled and tested the main board.  Only missing 1 4-pin connector and resettable fuse for 24V option, and 1 resistor network for the LEDs.  Used an axial resistor poked into the holes to test the LEDs.  Everything is working as designed.  The missing parts should arrive Jan 25th.  Assembled the Remote Decoder board minus the chips and edge connectors which are arriving Jan 25th.  12V and 5V power and LED working.
+![20250125_160846](https://github.com/user-attachments/assets/0a110110-9889-4ad0-b90d-9c34388d8dfe)
 
-![20250123_183641](https://github.com/user-attachments/assets/5e3937df-7ab0-4eae-bef5-57cf71789798)
+
+24 Jan 2024 - Uploaded full BOMs and PCB gerber files and schematic PDFs.
+
+23 Jan 2025 -  20 sets of PCBs arrived today early.   Assembled and tested the main board.  Only missing 1 4-pin connector and resettable fuse for 24V option, and 1 resistor network for the LEDs.  Used an axial resistor poked into the holes to test the LEDs.  Everything is working as designed.  The missing parts should arrive Jan 25th.  Assembled the Remote Decoder board minus the chips and edge connectors which are arriving Jan 25th.  12V and 5V power and LED working.
 
 Updated the firmare for the new GPIO pin assignments.  The Hammond enclosure and the other parts should be here in 2 days  I have some 1/2" long LED light pipes coming to try out so I mounted the LEDs onto the PCB.
 
