@@ -4,4 +4,4 @@ dependencies:
   idf: '>=4.4'
  ##espressif/i2c_bus: ^1.1.0
   m5stack/m5unified: ^0.2.2
- ## espressif/esp_tinyusb: ~1.0.0
+  
