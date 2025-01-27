@@ -16,6 +16,8 @@
 #include <sys/time.h>
 #include <ctime>
 #include "CIV.h"
+#include "driver/uart.h"
+#include "Decoder.h"
 
 static const char *TAG = "CIV";
 
@@ -42,6 +44,8 @@ extern void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const ui
 extern bool get_ext_mode_flag;
 extern struct tm tm;
 extern time_t t;
+extern void blink_led(uint8_t s_led_state , char color);
+extern int sendData2(const char* logName, const char* data);
 
 uint8_t radio_mode;      // mode from radio messages
 uint8_t radio_filter;    // filter from radio messages
@@ -55,6 +59,8 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_F_SEND,          {1,0x00}},                      // send operating frequency to all
     {CIV_C_F1_SEND,         {1,0x05}},                      // send operating frequency to one
     {CIV_C_F_READ,          {1,0x03}},                      // read operating frequency
+    {CIV_C_F25A,            {2,0x25,0x00}},                 // read selected VFO (00) operating frequency
+    {CIV_C_F25B,            {2,0x25,0x01}},                 // read unselected VFO (01)
     {CIV_C_F26,        		  {1,0x26}},                      // read selected VFO m data, filt -  26 datafield template; selected VFO; mode, data on/off(0-1), filter (1-3);
     {CIV_C_F26A,        	  {2,0x26,0x00}},                 // read/set selected VFO m data, filt
     {CIV_C_F26B,       		  {2,0x26,0x01}},                 // read/set  un- selected VFO m data, filt
@@ -116,7 +122,10 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_RIT_ON_OFF,		  {2,0x21,0x01}},	          	  // send or send RIT ON or Off status 00 = , 01 = t
     {CIV_C_XIT_ON_OFF,		  {2,0x21,0x02}},	          	  // send or send XIT Offset
     {CIV_C_RADIO_OFF,		    {2,0x18,0x00}},	          	  // Turn Off the radio
-    {CIV_C_RADIO_ON,		    {2,0x18,0x01}}	          	  // Turn on the radio
+    {CIV_C_RADIO_ON,		    {2,0x18,0x01}},	          	  // Turn on the radio
+    {CIV_C_SCOPE_ON,        {3,0x27,0x10,0x01}},          // send/read Scope ON
+    {CIV_C_SCOPE_OFF,       {3,0x27,0x10,0x00}},          // send/read Scope OFF
+    {CIV_C_SCOPE_ALL,       {1,0x27}}                     // send/read Scope OFF
 };
 
 //
@@ -451,22 +460,27 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
   
   switch (cmd_num) 
   {
+    case CIV_C_F25A:
+    case CIV_C_F25B:
     case CIV_C_F_READ:
     case CIV_C_F_SEND:
     case CIV_C_F1_SEND: {
         uint64_t f;
         uint64_t mul;
 
-        if ((data_len == 5 || (radio_address == IC905 && data_len == 6)) && (rd_buffer[4] == 3 || rd_buffer[4] == 0 || rd_buffer[4] == 5)) {
+        //blink_led(1, 'R');  // Turn it On.
+        sendData2("rx_task", "CIV_Freq Received Frequency message\n");
+        
+        if ((data_len == 5 || (radio_address == IC905 && data_len == 6)) && (rd_buffer[4] == 3 || rd_buffer[4] == 0 || rd_buffer[4] == 5 || rd_buffer[4] == 0x25)) {
 
           mul = 1;
           f = 0;
-          for (uint8_t i = 5; i < 5 + data_len; i++) {
-            if (rd_buffer[i] == 0xFD) continue;  //spike
-            f += (rd_buffer[i] & 0x0F) * mul; mul *= 10;  // * decMulti[i * 2 + 1];
-            f += (rd_buffer[i] >> 4) * mul; mul *= 10;  //  * decMulti[i * 2];
+          for (uint8_t i = data_start_idx; i < data_start_idx + data_len; i++) {
+              if (rd_buffer[i] == 0xFD) continue;  //spike
+              f += (rd_buffer[i] & 0x0F) * mul; mul *= 10;  // * decMulti[i * 2 + 1];
+              f += (rd_buffer[i] >> 4) * mul; mul *= 10;  //  * decMulti[i * 2];
           }
-          //Serial.printf("CIV_Action: Freq %-13llu\n", f);
+          //ESP_LOGI("CIV_Action", "Freq %-13llu\n", f);
           read_Frequency(f, data_len);
         }
         break;
@@ -826,6 +840,112 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         ESP_LOGI(TAG, "CIV_Action:  XIT On/Off: %d", radio_XIT_On_Off);
         break;
 		}  // XIT On/Off
+
+    case CIV_C_BSTACK: {      				// Test for Bstack message				
+				//if (CIVresultL.cmd[1] == CIV_C_BSTACK[1]) 
+				//{
+        // returned message is 1A 01 band code, reg code, freq, mode, data on/off
+        // receive fields 6 to 52 on p18 of prog guide
+        // 6-10 freq or 6-12 for 10GHz+
+        // +2 Mode
+        // +1 Data mode on/off
+        // can ignore the rest - appies to Rptrs and DigV modes
+
+        blink_led(1, 'P');  // Turn it On for band change
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        sendData2("rx_task", "BSTACK Received message\n");
+
+        uint16_t bstack_band  = bcdByte(rd_buffer[data_start_idx]);
+        uint16_t bstack_reg   = bcdByte(rd_buffer[data_start_idx+1]);
+
+        ESP_LOGI("BSTACK", "Band Stack - Band: %d  Register: %d", bstack_band, bstack_reg);
+          
+        uint8_t F_len;
+
+        if (RADIO_ADDR == IC905) 
+          F_len = 6;	// 6 bytes for IC905
+        else
+          F_len = 5;	// 6 bytes for IC705 and other models < 10Ghz
+        
+        uint8_t idx = 0;
+        uint8_t DstartIdx = data_start_idx + 2;  // start of freq for 6 bytes length for IC905, 5 for other models
+        uint8_t DstopIdx = DstartIdx + F_len;  // start of mode, filter data on/off will be 1-3 bytes after
+        uint8_t rxBuffer[60];  // hold 6 bytes of frequency
+        uint64_t mul = 1;
+        uint64_t bstack_freq = 0;
+        uint8_t band = 0;  // temp storage for radio bstack band code to remote bandmem table band index
+
+        for (idx = DstartIdx; idx < DstopIdx; idx++)           // pull out frequency from datafield result
+          rxBuffer[idx-DstartIdx] = rd_buffer[idx];
+
+        // 6 byte data -> first byte is of lowest order - for 905 10G and up bands
+        for (idx = 0; idx < F_len; idx++) {
+          bstack_freq += (rxBuffer[idx] & 0x0f) * mul; mul *= 10;
+          bstack_freq += (rxBuffer[idx] >> 4) * mul; mul *= 10;
+        }
+        ESP_LOGI("BSTACK", "  Frequency: %llu", bstack_freq);
+        //Serial.printf("CIV_Action: Freq %-13llu\n", f);
+
+        radio_mode = rd_buffer[DstopIdx];  // modulation mode in BCD
+        radio_filter = rd_buffer[DstopIdx+1];  // filter 
+        radio_data = rd_buffer[DstopIdx+2];  // data mode on or off
+        ESP_LOGI("BSTACK", "  Mode: %X  Filter: %X  Data: %X", radio_mode, radio_filter, radio_data);   
+              
+        // convert to our own mode extended mode list to show -D (or not)
+        for (uint8_t i = 0; i< MODES_NUM; i++)
+        {
+          if (modeList[i].mode_num == radio_mode && modeList[i].data == radio_data)
+          {
+            radio_mode = i;   
+            break;
+          }
+        }
+        ESP_LOGI("BSTACK", "  Mode Index: %d  Mode label: %s", radio_mode, modeList[radio_mode].mode_label); 
+        
+        read_Frequency(bstack_freq, data_len);
+
+  break;
+
+        // convert radio bstack band code to remote bands table band index
+        switch (bstack_band)
+        {
+          case 1: band = BAND_2M; break;
+          case 2: band = BAND_70cm; break;
+          case 3: band = BAND_23cm; break;
+          case 4: band = BAND_13cm; break;
+          case 5: band = BAND_6cm; break;
+          case 6: band = BAND_3cm; break;
+          default: band = BAND_2M; break;
+        }
+        // ToDo: convert the radio mode to our extended most list which is a combo of mode and data
+        // This lookup is probably done elsewhere so put it here too.
+        switch (bstack_reg)
+        {
+          case 1: bands[band].VFO_last  = bstack_freq; 
+              //bands[band].mode_A 		  = radio_mode; // now an index to our extended mode list
+              //bands[band].filter_A 		= radio_filter;
+              //modeList[bands[band].mode_A].Width = radio_filter;
+              //bands[band].data_A 		  = radio_data; 		// LSB, USB, AM, FM modes can have DATa mode on or off.  All other radio modes data is NA.
+              break;
+          case 2: bands[band].VFO_last 	= bstack_freq; 
+              //bands[band].mode_A_1 		= radio_mode;
+              //bands[band].filter_A_1 	= radio_filter;
+              //modeList[bands[band].mode_A].Width = radio_filter;
+              //bands[band].data_A_2 		= radio_data;
+              break;
+          case 3: bands[band].VFO_last 	= bstack_freq; 
+              //bands[band].mode_A_2 		= radio_mode;
+              //bands[band].filter_A_2	= radio_filter; 
+              //modeList[bands[band].mode_A].Width = radio_filter;
+              //bands[band].data_A_2 		= radio_data;
+              break;
+        }
+        break;
+    }
+
+    case CIV_C_SCOPE_OFF:
+    case CIV_C_SCOPE_ON:
+    case CIV_C_SCOPE_ALL:  // do nothing
 
     default: ESP_LOGI(TAG, "CIV_Action: *** default action"); break;
           //knowncommand = false;

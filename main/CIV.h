@@ -74,6 +74,8 @@ enum cmds {
     CIV_C_F_SEND,
     CIV_C_F1_SEND,
     CIV_C_F_READ,
+    CIV_C_F25A,
+    CIV_C_F25B,
     CIV_C_F26,
     CIV_C_F26A,
     CIV_C_F26B,
@@ -127,6 +129,9 @@ enum cmds {
     CIV_C_XIT_ON_OFF,
     CIV_C_RADIO_OFF,
     CIV_C_RADIO_ON,
+    CIV_C_SCOPE_ON,
+    CIV_C_SCOPE_OFF,
+    CIV_C_SCOPE_ALL,
     End_of_Cmd_List
 };
 

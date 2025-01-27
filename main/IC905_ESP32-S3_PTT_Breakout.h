@@ -48,6 +48,9 @@
 
 //#define PROTOTYPE           // PIN and ADC assignments unique to the prototype build
 
+#define CIV_SERIAL            // Pass through CI_V bus data on serial (USB or analog) between radio and PC
+
+#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
 
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values
@@ -64,8 +67,7 @@
 #define STOP_BYTE 0xFD   // Stop byte
 #define CMD_READ_FREQ 0x03    // Read operating frequency data
 
-//#define PC_PASSTHROUGH  // fwd through BT or USBHOST data to a PC if connected.  All debug must be off!
-#ifndef PC_PASSTHROUGH        // shut off by default when PASSTHRU MODE is on
+#ifndef CIV_SERIAL        // shut off by default when PASSTHRU MODE is on
   #define PRINT_VFO_TO_SERIAL // uncomment to visually see VFO updates from the radio on Serial
   #define PRINT_PTT_TO_SERIAL // uncomment to visually see PTT updates from the radio on Serial
   #define NO_SEND  // block changes to radio from controller - used for PC pass thru
@@ -113,6 +115,9 @@
   #define ADC1_CHAN0          ADC_CHANNEL_3
   #define ADC_ATTEN           ADC_ATTEN_DB_12
 #endif
+
+#define BLINK_GPIO GPIO_NUM_48
+//#define CONFIG_BLINK_LED_STRIP
 
 struct Bands {
   char band_name[6];    // Friendly name or label.  Default here but can be changed by user.

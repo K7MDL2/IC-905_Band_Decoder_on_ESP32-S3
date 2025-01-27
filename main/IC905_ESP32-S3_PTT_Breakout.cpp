@@ -50,20 +50,12 @@
 #include "esp_adc/adc_oneshot.h"
 #include "esp_adc/adc_cali.h"
 #include "esp_adc/adc_cali_scheme.h"
+#include "driver/uart.h"
+#include "led_strip.h"
 
 #include "Decoder.h"
 #include "CIV.h"
 #include "LED_Control.h"
-
-//#define USB_PC
-
-#ifdef USB_PC
-    #include "tusb_cdc_acm.h"
-    #include "tinyusb.h"
-    #include "sdkconfig.h"
-    //#define CONFIG_TINYUSB_CDC_RX_BUFSIZE 512
-    static uint8_t rx_buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];
-#endif
 
 // Our own functions
 void display_Freq(uint64_t _freq, bool _force);
@@ -73,6 +65,9 @@ void display_Band(uint8_t _band, bool _force);
 void display_Grid(char _grid[], bool _force);
 void SetFreq(uint64_t Freq);
 void poll_for_time(void);
+void read_BSTACK_from_Radio(uint8_t band, uint8_t reg);
+void blink_led(uint8_t s_led_state, char color);
+int sendData2(const char* logName, const char* data);
 
 struct Bands bands[NUM_OF_BANDS] = {
   { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
@@ -249,67 +244,116 @@ static void gpio_PTT_Input(void* arg)
     }
 }
 
-#ifdef USB_PC
-    /**
-     * @brief Application Queue
-     */
-    static QueueHandle_t app_queue;
-    typedef struct {
-        uint8_t buf[CONFIG_TINYUSB_CDC_RX_BUFSIZE + 1];     // Data buffer
-        size_t buf_len;                                     // Number of bytes received
-        uint8_t itf;                                        // Index of CDC device interface
-    } app_message_t;
+#ifdef UART_DEBUG
+    static const int RX2_BUF_SIZE = 1024;
+    #define TXD2_PIN (GPIO_NUM_47)
+    #define RXD2_PIN (GPIO_NUM_21)
 
-    app_message_t msg;
-
-    /**
-     * @brief CDC device RX callback
-     *
-     * CDC device signals, that new data were received
-     *
-     * @param[in] itf   CDC device index
-     * @param[in] event CDC event type
-     */
-    void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event)
+    void init2(void)
     {
-        /* initialization */
-        size_t rx_size = 0;
+        const uart_config_t uart_config2 = {
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_DEFAULT,
+        };
+        // We won't use a buffer for sending data.
+        uart_driver_install(UART_NUM_2, RX2_BUF_SIZE * 2, 0, 0, NULL, 0);
+        uart_param_config(UART_NUM_2, &uart_config2);
+        uart_set_pin(UART_NUM_2, TXD2_PIN, RXD2_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    }
 
-        /* read */
-        esp_err_t ret = tinyusb_cdcacm_read(itf, rx_buf, CONFIG_TINYUSB_CDC_RX_BUFSIZE, &rx_size);
-        if (ret == ESP_OK) {
+    int sendData2(const char* logName, const char* data)
+    {
+        const int len = strlen(data);
+        const int txBytes = uart_write_bytes(UART_NUM_2, data, len);
+        //ESP_LOGI(logName, "Wrote %d bytes", txBytes);
+        return txBytes;
+    }
 
-            app_message_t tx_msg = {
-                .buf_len = rx_size,
-                .itf = itf,
-            };
-
-            memcpy(tx_msg.buf, rx_buf, rx_size);
-            xQueueSend(app_queue, &tx_msg, 0);
-        } else {
-            ESP_LOGE(TAG, "Read Error");
+    /*
+    static void tx2_task(void *arg)
+    {
+        static const char *TX_TASK2_TAG = "TX_TASK2";
+        esp_log_level_set(TX_TASK2_TAG, ESP_LOG_INFO);
+        while (1) {
+            sendData2(TX_TASK2_TAG, "Hello world\0");
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
         }
     }
+    */
+#endif
 
-    /**
-     * @brief CDC device line change callback
-     *
-     * CDC device signals, that the DTR, RTS states changed
-     *
-     * @param[in] itf   CDC device index
-     * @param[in] event CDC event type
-     */
-    void tinyusb_cdc_line_state_changed_callback(int itf, cdcacm_event_t *event)
+#ifdef CIV_SERIAL
+    static const int RX_BUF_SIZE = 1024;
+    #define TXD_PIN (GPIO_NUM_43)
+    #define RXD_PIN (GPIO_NUM_44)
+
+    void init(void)
     {
-        int dtr = event->line_state_changed_data.dtr;
-        int rts = event->line_state_changed_data.rts;
-        ESP_LOGI(TAG, "Line state changed on channel %d: DTR:%d, RTS:%d", itf, dtr, rts);
+        const uart_config_t uart_config = {
+            .baud_rate = 115200,
+            .data_bits = UART_DATA_8_BITS,
+            .parity = UART_PARITY_DISABLE,
+            .stop_bits = UART_STOP_BITS_1,
+            .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+            .source_clk = UART_SCLK_DEFAULT,
+        };
+        // We won't use a buffer for sending data.
+        uart_driver_install(UART_NUM_0, RX_BUF_SIZE * 2, 0, 0, NULL, 0);
+        uart_param_config(UART_NUM_0, &uart_config);
+        uart_set_pin(UART_NUM_0, TXD_PIN, RXD_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     }
-#endif // USB_PC
+    /*
+    int sendData(const char* logName, const char* data)
+    {
+        const int len = strlen(data);
+        const int txBytes = uart_write_bytes(UART_NUM_0, data, len);
+        ESP_LOGI(logName, "Wrote %d bytes", txBytes);
+        return txBytes;
+    }
 
+    static void tx_task(void *arg)
+    {
+        static const char *TX_TASK_TAG = "TX_TASK";
+        esp_log_level_set(TX_TASK_TAG, ESP_LOG_INFO);
+        while (1) {
+            sendData(TX_TASK_TAG, "Hello world\0");
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+        }
+    }
+    */
+    static void rx_task(void *arg)  // forward data from a PC to the radio.  Monitor for frequency/band changes
+    {
+        static const char *RX_TASK_TAG = "RX_TASK";
+        esp_log_level_set(RX_TASK_TAG, ESP_LOG_INFO);
+        uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
+        while (1) {
+            const int rxBytes = uart_read_bytes(UART_NUM_0, data, RX_BUF_SIZE, 10 / portTICK_PERIOD_MS);
+            if (rxBytes > 0) {
+                data[rxBytes] = 0;
+                //ESP_LOGI(RX_TASK_TAG, "Read %d bytes: '%s'", rxBytes, data);
+                //ESP_LOG_BUFFER_HEXDUMP(RX_TASK_TAG, data, rxBytes, ESP_LOG_INFO);
+                if (USBH_connected && init_done) {
+                    cdc_acm_host_data_tx_blocking(cdc_dev, data, rxBytes, 1000);  // send our message out to radio
+                    if (data[rxBytes-1] == 0xFD)
+                    {
+                        //ESP_LOG_BUFFER_HEXDUMP("rx_task", pData, data_len, ESP_LOG_INFO);
+                        processCatMessages(data, rxBytes);
+                    }
+                }
+            }
+            //vTaskDelay(portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        free(data);
+    }
+#endif
 
 /**
- * @brief Data received callback
+ * @brief Data received from radio callback
  *
  * @param[in] pData     Pointer to received data
  * @param[in] data_len Length of received data in bytes
@@ -320,21 +364,17 @@ static void gpio_PTT_Input(void* arg)
  */
 static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
 {
-    //ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
+    ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
+            // send out to CI-V Serial port
 
-    if (pData[data_len-1] == 0xFD)
+    if (pData[data_len-1] == 0xFD && USBH_connected)
     {
         //ESP_LOG_BUFFER_HEXDUMP("handle_rx-1", pData, data_len, ESP_LOG_INFO);
-        
-        #ifdef PC_PASSTHROUGH
-            /* bridge Radio --> PC */
-            tinyusb_cdcacm_write_queue(msg.itf, pData, data_len);
-            esp_err_t err = tinyusb_cdcacm_write_flush(msg.itf, 0);
-            if (err != ESP_OK) {
-                ESP_LOGE(TAG, "CDC ACM write flush error: %s", esp_err_to_name(err));
-            }
-        #endif
         processCatMessages(pData, data_len);
+        #ifdef CIV_SERIAL        
+            if (init_done)
+                const int txBytes = uart_write_bytes(UART_NUM_0, pData, data_len); 
+        #endif
     }
     return true;
 }
@@ -437,7 +477,7 @@ static void usb_loop_task(void *arg)
 
             vTaskDelay(pdMS_TO_TICKS(100));
             
-            if (1) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
+            if (init_done) {   // only spend CPU cycles changing the brightness level if it changes more than a small amount
                 if ((led_bright_level < (last_level - 20)) || (led_bright_level > (last_level + 20))) {
                     if (led_bright_level < 1)
                         led_bright_level = 0;  // API will crash if exceed max resolution 
@@ -617,8 +657,8 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     if (frequency > 0) {                   // store frequency per band before it maybe changes bands.  Required to change IF and restore direct after use as an IF.
         //ESP_LOGI(TAG,"read_Frequency: Last Freq %-13llu", frequency);
         if (!update_radio_settings_flag) {   // wait until any XVTR transition complete
-        bands[band].VFO_last = frequency;  // store Xvtr or non-Xvtr band displayed frequency per band before it changes.
-        prev_band = band;                  // store associated band index
+            bands[band].VFO_last = frequency;  // store Xvtr or non-Xvtr band displayed frequency per band before it changes.
+            prev_band = band;                  // store associated band index
         }
     }  // if an Xvtr band, subtract the offset to get radio (IF) frequency
 
@@ -629,7 +669,9 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     if (band != prev_band) {
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
-        
+        blink_led(1, 'W');  // Turn it On for band change
+        sendData2("rx_task", "CIV_Freq Band Change\n");
+
         #ifdef USE_LEDS
             if (prev_band != 0xFF) {  // have not been through here before, make sure we have a valid band to set the LED to.
                 ESP_LOGI("read_Frequency", "*** Band change to %d.  prev_band was %d", band, prev_band);
@@ -652,6 +694,7 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
 
         prev_band = band;
     }
+
     ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", frequency, band, radio_address);
     //ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  datalen = %d   btConnected %d   USBH_connected %d  BLE_connected %d  radio_address %X", frequency, band, data_len, btConnected, USBH_connected, BLE_connected, radio_address);
     // On exit from this function we have a new displayed frequency that has XVTR_Offset added, if any.
@@ -818,8 +861,8 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                 radio_address_received = read_buffer[3];
                 //if (read_buffer[3] == radio_address) {
                 if (read_buffer[3] != 0) {
-                    if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
-
+                    //if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
+                    if (1) {
                         for (cmd_num = CIV_C_F_SEND; cmd_num < End_of_Cmd_List; cmd_num++)  // loop through the command list structure looking for a pattern match
                         {
                             //ESP_LOGI("processCatMessages", "processCatMessageslist: list index = "); DPRINTLN(cmd_num);
@@ -860,6 +903,7 @@ void processCatMessages(const uint8_t read_buffer[], size_t data_len) {
                         if (cmd_num >= End_of_Cmd_List - 1) 
                         {
                             ESP_LOGI("processCatMessages", "processCatMessages: No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X", cmd_num, read_buffer[4], read_buffer[5]);
+                            //sendData2("rx_task", "ProcMsgs No Match found message\n);
                             //knowncommand = false;
                         } 
                         else 
@@ -1129,13 +1173,23 @@ void display_Grid(char _grid[], bool _force) {
   }
 }
 
+void read_BSTACK_from_Radio(uint8_t band, uint8_t reg)   // Ask the radio for band and register contents
+{
+    //DPRINTF("read_BSTACK_from_Radio: Band stack band and register contents requested: "); DPRINT(band); DPRINTF(" "); DPRINTLN(reg);
+    uint8_t data_str[3] = {};
+    data_str[0] = band;  // send the mode values
+    data_str[1] = reg;  // send the mode values
+    sendCatRequest(CIV_C_BSTACK, data_str, 2);  //Read BSR
+    vTaskDelay(pdMS_TO_TICKS(20));
+}
+
 void poll_for_time(void){
     if (init_done && !sending) { // && board_type == M5ATOMS3) {
         /*   Do not need to get UTC offset since it is called at startup and is a global.
         if (radio_address == IC905)                  //905
-            sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
+            sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ
         else if (radio_address == IC705)             // 705
-            sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
+            sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ
         vTaskDelay(pdMS_TO_TICKS(2));
         */
         ESP_LOGI(TAG, "***Get Time from radio");
@@ -1172,6 +1226,51 @@ uint8_t Get_Radio_address(void) {
         }
     }
     return retry_Count;
+}
+
+led_strip_handle_t led_strip;
+
+void blink_led(uint8_t s_led_state, char color)
+{  
+    /* If the addressable LED is enabled */
+    if (s_led_state) {
+        /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
+
+    switch (color) {
+        case 'W':   led_strip_set_pixel(led_strip, 0, 16, 16, 16); break;  // read_freq on band change (white)
+        case 'R':   led_strip_set_pixel(led_strip, 0, 255, 0, 0); break;   // 0x25 VFO freq -> readfreq  (red-white)
+        case 'G':   led_strip_set_pixel(led_strip, 0, 0, 255, 0); break;   // processmsg -> CIV -> read_freq (Green-Red-White)
+        case 'P':   led_strip_set_pixel(led_strip, 200, 0, 0, 200); break; // bandstack -> read-freq  (purple-white)
+        case 'B':   led_strip_set_pixel(led_strip, 0, 0, 0, 255); break;   // RX data fom PC - processMsg -> Civ -> read_freq (Blue-Green-red-White)
+    }
+        /* Refresh the strip to send data */
+        led_strip_refresh(led_strip);
+    } else {
+        /* Set all LED off to clear all pixels */
+        led_strip_clear(led_strip);
+    }
+}
+
+static void configure_led(void)
+{
+    ESP_LOGI(TAG, "Configured to blink addressable LED!");
+    /* LED strip initialization with the GPIO and pixels number*/
+    led_strip_config_t strip_config = {
+        .strip_gpio_num = BLINK_GPIO,
+        .max_leds = 1, // at least one LED on board
+        .led_pixel_format = LED_PIXEL_FORMAT_GRB,
+        .led_model = LED_MODEL_WS2812,
+    };
+
+    led_strip_rmt_config_t rmt_config = {
+        .resolution_hz = 10 * 1000 * 1000, // 10MHz
+        //.flags.with_dma = false,
+    };
+    rmt_config.flags.with_dma = false;
+
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    /* Set all LED off to clear all pixels */
+    led_strip_clear(led_strip);
 }
 
 void setup_IO(void)
@@ -1253,6 +1352,8 @@ void setup_IO(void)
         };
         ESP_ERROR_CHECK(adc_oneshot_config_channel(adc1_handle, ADC1_CHAN0, &config));
     #endif
+  
+    configure_led();
 }
 
 /**
@@ -1276,77 +1377,7 @@ extern "C" void app_main(void)  // for .cpp files
         gpio_reset_pin(GPIO_NUM_48);
         gpio_set_direction(GPIO_NUM_48, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED
         gpio_set_level(GPIO_NUM_48, 1);  // Turn it Off.
-        
     #endif 
-
-    #ifdef USB_PC
-
-        // Create FreeRTOS primitives
-        app_queue = xQueueCreate(5, sizeof(app_message_t));
-        assert(app_queue);
-        
-        ESP_LOGI(TAG, "USB initialization");
-        const tinyusb_config_t tusb_cfg = {
-            .device_descriptor = NULL,
-            .string_descriptor = NULL,
-            .external_phy = false,
-        #if (TUD_OPT_HIGH_SPEED)
-            .fs_configuration_descriptor = NULL,
-            .hs_configuration_descriptor = NULL,
-            .qualifier_descriptor = NULL,
-        #else
-            .configuration_descriptor = NULL,
-        #endif // TUD_OPT_HIGH_SPEED
-            .self_powered = NULL,                        /*!< This is a self-powered USB device. USB VBUS must be monitored. */
-            .vbus_monitor_io = NULL                       /*!< GPIO for VBUS monitoring. Ignored if not self_powered. */
-        };
-
-        ESP_ERROR_CHECK(tinyusb_driver_install(&tusb_cfg));
-
-        tinyusb_config_cdcacm_t acm_cfg = {
-            .usb_dev = TINYUSB_USBDEV_0,
-            .cdc_port = TINYUSB_CDC_ACM_0,
-            .rx_unread_buf_sz = 64,
-            .callback_rx = tinyusb_cdc_rx_callback, // the first way to register a callback
-            .callback_rx_wanted_char = NULL,
-            .callback_line_state_changed = NULL,
-            .callback_line_coding_changed = NULL
-        };
-
-        ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
-        /* the second way to register a callback */
-        ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
-                            TINYUSB_CDC_ACM_0,
-                            CDC_EVENT_LINE_STATE_CHANGED,
-                            &tinyusb_cdc_line_state_changed_callback));
-
-        #if (CONFIG_TINYUSB_CDC_COUNT > 1)
-        acm_cfg.cdc_port = TINYUSB_CDC_ACM_1;
-        ESP_ERROR_CHECK(tusb_cdc_acm_init(&acm_cfg));
-        ESP_ERROR_CHECK(tinyusb_cdcacm_register_callback(
-                            TINYUSB_CDC_ACM_1,
-                            CDC_EVENT_LINE_STATE_CHANGED,
-                            &tinyusb_cdc_line_state_changed_callback));
-        #endif
-
-        ESP_LOGI(TAG, "USB initialization DONE");
-
-        if (xQueueReceive(app_queue, &msg, portMAX_DELAY)) {
-            if (msg.buf_len) {
-
-                /* Print received data*/
-                ESP_LOGI(TAG, "Data from channel %d:", msg.itf);
-                ESP_LOG_BUFFER_HEXDUMP(TAG, msg.buf, msg.buf_len, ESP_LOG_INFO);
-
-                /* write back */
-                tinyusb_cdcacm_write_queue(msg.itf, msg.buf, msg.buf_len);
-                esp_err_t err = tinyusb_cdcacm_write_flush(msg.itf, 0);
-                if (err != ESP_OK) {
-                    ESP_LOGE(TAG, "CDC ACM write flush error: %s", esp_err_to_name(err));
-                }
-            }
-        }
-    #endif
 
     #ifdef CONFIG_IDF_TARGET_ESP32S3
         #if !defined (M5STAMPC3U) &&  defined (ATOMS3)
@@ -1459,6 +1490,10 @@ extern "C" void app_main(void)  // for .cpp files
         //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
         vTaskDelay(pdMS_TO_TICKS(200));
         
+        ESP_LOGI(TAG, "***Turn OFF scope data from radio");
+        sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
+        vTaskDelay(pdMS_TO_TICKS(100));
+
         while (radio_address == 0 || frequency == 0) {
             ESP_LOGI(TAG, "***Get frequency from radio");
             sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
@@ -1485,16 +1520,32 @@ extern "C" void app_main(void)  // for .cpp files
         sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
         vTaskDelay(pdMS_TO_TICKS(20));
 
-        #ifdef PC_PASSTHROUGH
+        ESP_LOGI(TAG, "***Get selected VFO freq from radio.");
+        sendCatRequest(CIV_C_F25A, 0, 0); 
+        vTaskDelay(pdMS_TO_TICKS(100));
+
+        //ESP_LOGI(TAG, "***Get a BSR from radio.");
+        //read_BSTACK_from_Radio(5, 3);
+        //vTaskDelay(pdMS_TO_TICKS(20));
+        //SetFreq(frequency); 
+        //vTaskDelay(pdMS_TO_TICKS(100));
+
+        ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        #ifdef CIV_SERIAL  // pass through PC messages to radi
             esp_log_level_set("*", ESP_LOG_NONE);
+            init();
+            xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);            
+        #endif
+
+        #ifdef UART_DEBUG
+            init2();
+            //xTaskCreate(tx2_task, "uart_tx2_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
         #endif
 
         init_done = 1;
-        #ifdef USE_LEDS
-            //PowerOn_LED(1);  // set power LED to solid on state when we have a good radio connection
-        #endif
 
-        ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
         // usb_loop_task() is where our program runs within now.  
         // handler_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.
