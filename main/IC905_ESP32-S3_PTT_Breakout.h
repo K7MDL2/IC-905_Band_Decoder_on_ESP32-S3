@@ -48,9 +48,9 @@
 
 //#define PROTOTYPE           // PIN and ADC assignments unique to the prototype build
 
-#define CIV_SERIAL            // Pass through CI_V bus data on serial (USB or analog) between radio and PC
+//#define CIV_SERIAL            // Pass through CI_V bus data on serial (USB or analog) between radio and PC
 
-#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
+//#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
 
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values

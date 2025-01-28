@@ -364,7 +364,7 @@ static void gpio_PTT_Input(void* arg)
  */
 static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
 {
-    ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
+    //ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
             // send out to CI-V Serial port
 
     if (pData[data_len-1] == 0xFD && USBH_connected)
@@ -670,7 +670,9 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
         blink_led(1, 'W');  // Turn it On for band change
-        sendData2("rx_task", "CIV_Freq Band Change\n");
+        #ifdef UART_DEBUG
+            sendData2("rx_task", "CIV_Freq Band Change\n");
+        #endif
 
         #ifdef USE_LEDS
             if (prev_band != 0xFF) {  // have not been through here before, make sure we have a valid band to set the LED to.

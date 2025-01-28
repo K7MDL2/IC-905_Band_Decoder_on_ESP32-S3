@@ -468,8 +468,9 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         uint64_t f;
         uint64_t mul;
 
-        //blink_led(1, 'R');  // Turn it On.
-        sendData2("rx_task", "CIV_Freq Received Frequency message\n");
+        #ifdef UART_DEBUG
+          sendData2("rx_task", "CIV_Freq Received Frequency message\n");
+        #endif
         
         if ((data_len == 5 || (radio_address == IC905 && data_len == 6)) && (rd_buffer[4] == 3 || rd_buffer[4] == 0 || rd_buffer[4] == 5 || rd_buffer[4] == 0x25)) {
 
@@ -853,7 +854,9 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
 
         blink_led(1, 'P');  // Turn it On for band change
         vTaskDelay(pdMS_TO_TICKS(1000));
-        sendData2("rx_task", "BSTACK Received message\n");
+        #ifdef UART_DEBUG
+          sendData2("rx_task", "BSTACK Received message\n");
+        #endif
 
         uint16_t bstack_band  = bcdByte(rd_buffer[data_start_idx]);
         uint16_t bstack_reg   = bcdByte(rd_buffer[data_start_idx+1]);
