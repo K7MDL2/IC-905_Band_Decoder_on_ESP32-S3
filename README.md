@@ -8,9 +8,9 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-28 Jan 2025 - Added ability to detect on USB connection the radio address (vs. just startup).  On detection it will load frequency tables for the 705 or the 905.  The 9700 should work with the 905 table as they share the same 3 lower bands. I believe I am ignoring sub-VFO frequency messages, that needs to be tested.  The 9700 in particular.  I also have working CI-V bridging between USB to USB and USB to hardware serial, and I added a 3rd serial port for debugging that bidirectional traffic.  Also added sime code to light up the onboard RGB LED in different colors for troublehooting as it is too bright to leave on inside a case.  It is working with WSJT-X and wfView.  wfView is pulling CI-V spectrum data resulting in a lot of USB traffic.  Initially I had to use manual polling in wfView to slow things down some, it is better now but likely can use some more perf tweaking. 
+28 Jan 2025 - Added ability to detect on USB connection the radio address (vs. just startup).  On detection it will load frequency tables for the 705 or the 905.  The 9700 should work with the 905 table as they share the same 3 lower bands. I believe I am ignoring sub-VFO frequency messages, that needs to be tested on the 9700 in particular.  I also have CI-V bridging working between USB to USB and USB to hardware serial, and I added a 3rd serial port for debugging that bidirectional traffic.  Added code to light up the onboard RGB LED in different colors for troublehooting.  It is too bright to leave on inside a case so I have it disabled.  The CI-V bridging is working with WSJT-X and wfView.  wfView is pulling CI-V spectrum data resulting in a lot of USB traffic.  Initially I had to use manual polling in wfView to slow things down some, it is better now but likely can use some more perf tweaking. 
 
-The PCB is now fully at home in the plastic end panel Hammond case.  It is sitting next to the slightly smaller prototype box.
+The PCB is now fully at home in the plastic end panel Hammond case.  Here it is sitting next to the slightly smaller prototype box.
 
 ![{1C17655E-42E6-4F17-A307-2185ECCC2DDA}](https://github.com/user-attachments/assets/a5133237-45d0-4aec-b7f7-f5f4a5117d80)
 
