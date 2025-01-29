@@ -52,6 +52,7 @@
 
 //#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
 
+
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values
 // --------------------------------------------------------------------------------------------------------
@@ -61,7 +62,7 @@
     #undef USE_LEDS
 #endif
 
-#define CONTROLLER_ADDRESS 0xE0  //Controller address
+#define CONTROLLER_ADDRESS 0xE0   // E1 used by wfView  //Controller address - not used for receive validation, used on TX to radio.
 #define BROADCAST_ADDRESS 0x00
 #define START_BYTE 0xFE  // Start byte
 #define STOP_BYTE 0xFD   // Stop byte

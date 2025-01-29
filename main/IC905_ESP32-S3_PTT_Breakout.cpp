@@ -2,21 +2,34 @@
  *   IC905_ESP32-S3_PTT_Breakout.cpp
  *   Jan 2025 by K7MDL
  *
- *  This program is a USB Host Serial device that reads the Icom IC-905 USB CI_V frequency messages.
- *  For 10GHz and higher the IC-905 adds 1 extra byte that must be accounted for to decode the BCD encoded frequency
+ *  This program is a USB Host Serial device that reads the CI_V frequency messages (and some other data) from the radio
+ *  for the purpose of activating a selected band output and PTT output unique to each band.
+ *  
+ *  The program currently supports 6 bands and different model Icom radios, these will have different bands. 
+ *  The default band table is for the IC-905.  Upon detecting the radio's CI-V address at startup, 
+ *  the appropriate band table content is copied into the band table.
+ *  
+ *  For 10GHz and higher bands the IC-905 adds 1 extra byte that must be accounted for to decode the BCD encoded frequency
  *  The last data byte sent for frequency is the MSB.
- *  The radio PTT (aka SEND output) is wired into this CPU and monitored.  There is a status LED for it.
+ *
+ *  The radio PTT line (aka SEND output) is wired into this CPU and monitored.  There is a status LED for it.
  *  There are 6 PTT and 6 band enable outputs, with status LEDs for each band
- *  There is a power LED.  It is assigned for power status but can be used for anything.
+ *  There is a power LED.  It is assigned for power status but can be used for anything as all LEDs are PWM and assignable.
+ * 
  *  PTT is normally +5V if directly connected to the SEND jack with a weak pullup at the radio and at the CPU sides
  *  When PTT = 0 (radio is in TX) then we use the last frequency seen and send logic 1 to the matching band's PTT output.
  *  A ULN2803A open collector octal driver buffers the CPU outputs and also inverts so a logic 1 results in closure to GND.
  * 
  *  Support for the AtomS3 is enabled by a #define ATOMS3. It has no I/O support in this code today but has a nice
  *  small color LCD that displays frequency, time/date from radio, BAND, TX status, and location.
- *  I caclulate 8 digit grid square and display it in teh debug and on an optional display like the AtomsS3
- *  On bootup the radio is polled for time, location, band/frequency, modem, extended mode, UTC offset.  
- *  After that it listens for messages only so it does not interfere with future PC to Radio CI_V serial bridging.
+ *  I calculate an 8 digit grid square and display it in the debug and on an optional display like the AtomsS3
+ *
+ *  On bootup the radio is polled for time, location, band/frequency, mode, extended mode, and UTC offset.  
+ *  After that it listens for messages only so it does not interfere with PC to Radio CI_V serial bridging between the 2 USB serial ports
+ * 
+ *  The 2nd USB serial port is presented at TTL level on a jack on the PCB. 
+ *  This, or other hardware serial port pins may be brought out to a connector and with appropriate level shifting
+ *  used for analog to USB CI-V bridging.   Use #define CIV_SERIAL to enable this mode which also shuts off all debug output.
  * 
  *  ---------------------------------------------------------------------------------
  * The USB Serial Host part of this program is based on cdc_acm_host example file from 
@@ -69,14 +82,35 @@ void read_BSTACK_from_Radio(uint8_t band, uint8_t reg);
 void blink_led(uint8_t s_led_state, char color);
 int sendData2(const char* logName, const char* data);
 
+// default band table.  This will be overwritten depending on what radio CIV address is detected
 struct Bands bands[NUM_OF_BANDS] = {
-  { "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
-  { "2M", 144000000, 148000000, 0, 144200000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND144 },                  // 2m
-  { "70cm", 430000000, 450000000, 0, 432100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND430 },                // 430/440  No LO
-  { "23cm", 1240000000, 1300000000, 0, 1296100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND1200 },            // 1296Mhz  with 144Mhz LO
-  { "13cm", 2300000000, 2450000000, 0, 2304100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND2300 },            // 2.3 and 2.4GHz
-  { "6cm",  5650000000, 5925000000, 0, 5760100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND5600 },            // 5.7GHz
-  { "3cm", 10000000000, 10500000000, 0, 10368100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND10G },           // 10GHz
+{ "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
+{ "2M", 144000000, 148000000, 0, 144200000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND144 },                  // 2m
+{ "70cm", 430000000, 450000000, 0, 432100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND430 },                // 430/440  No LO
+{ "23cm", 1240000000, 1300000000, 0, 1296100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND1200 },            // 1296Mhz  with 144Mhz LO
+{ "13cm", 2300000000, 2450000000, 0, 2304100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND2300 },            // 2.3 and 2.4GHz
+{ "6cm",  5650000000, 5925000000, 0, 5760100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND5600 },            // 5.7GHz
+{ "3cm", 10000000000, 10500000000, 0, 10368100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND10G },           // 10GHz
+};
+
+const struct Bands bands_905[NUM_OF_BANDS] = {
+{ "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
+{ "2M", 144000000, 148000000, 0, 144200000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND144 },                  // 2m
+{ "70cm", 430000000, 450000000, 0, 432100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND430 },                // 430/440  No LO
+{ "23cm", 1240000000, 1300000000, 0, 1296100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND1200 },            // 1296Mhz  with 144Mhz LO
+{ "13cm", 2300000000, 2450000000, 0, 2304100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND2300 },            // 2.3 and 2.4GHz
+{ "6cm",  5650000000, 5925000000, 0, 5760100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND5600 },            // 5.7GHz
+{ "3cm", 10000000000, 10500000000, 0, 10368100000, 1, 1, 0, 1, 0, 0, 0, DECODE_INPUT_BAND10G },           // 10GHz
+};
+
+const struct Bands bands_705[NUM_OF_BANDS] = {
+{ "DUMMY", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xFF },                                       // DUMMY Band to avoid using 0
+{ "HF", 1800000, 29700000, 0, 14174000, 1, 1, 0, 1, 0, 0, 0, 1 },            // 1
+{ "6M", 50000000, 54000000, 0, 50125000, 1, 1, 0, 1, 0, 0, 0, 2 },            // 1296Mhz  with 144Mhz LO
+{ "FMAIR", 54000000, 144000000, 0, 102500000, 1, 1, 0, 1, 0, 0, 0, 3 },            // 1
+{ "2M", 144000000, 148000000, 0, 144200000, 1, 1, 0, 1, 0, 0, 0, 4 },                  // 2m
+{ "70cm", 420000000, 450000000, 0, 432100000, 1, 1, 0, 1, 0, 0, 0, 5 },                // 430/440  No LO
+{ "GEN", 1, 123000000000, 0, 5000000, 1, 1, 0, 1, 0, 0, 0, 6 }            // catch all this is last in the search
 };
 
 char title[25] = "IC-905 Band Decoder";
@@ -397,6 +431,7 @@ static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_
         ESP_LOGI(TAG, "Device suddenly disconnected");
         USBH_connected = false;
         PowerOn_LED(2);  // Flash Power On LED if no radio connection
+        radio_address = ALL_RADIOS;
         ESP_ERROR_CHECK(cdc_acm_host_close(event->data.cdc_hdl));
         xSemaphoreGive(device_disconnected_sem);
         break;
@@ -669,8 +704,9 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
     if (band != prev_band) {
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
         //get_ext_mode_flag = true;
-        blink_led(1, 'W');  // Turn it On for band change
+        
         #ifdef UART_DEBUG
+            blink_led(1, 'W');  // Turn it On for band change
             sendData2("rx_task", "CIV_Freq Band Change\n");
         #endif
 
@@ -707,7 +743,7 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
 // ----------------------------------------
 uint8_t getBand(uint64_t _freq) {
   for (uint8_t i = 0; i < NUM_OF_BANDS; i++) {
-    if (_freq >= bands[i].edge_lower && _freq <= bands[i].edge_upper) {
+    if (_freq >= bands[i].edge_lower && _freq < bands[i].edge_upper) {
       if (i >= NUM_OF_BANDS-1) return NUM_OF_BANDS-1;
       return i;
     }
@@ -1225,6 +1261,14 @@ uint8_t Get_Radio_address(void) {
                 radio_address = radio_address_received;
                 ESP_LOGI("Get_Radio_address: ", "Radio found at %X", radio_address);
             }
+        }
+        if (radio_address == IC705) {
+            // copy the Bands_705 structure content to thr Bands structure
+            memcpy(bands, bands_705, sizeof(bands));
+        }
+        else { // for all other radios (at least the 905 and 9700)
+            // copy the Bands_905 structure content to the Bands structure
+            memcpy(bands, bands_905, sizeof(bands));
         }
     }
     return retry_Count;

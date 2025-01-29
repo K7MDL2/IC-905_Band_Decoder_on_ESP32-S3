@@ -123,9 +123,9 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_XIT_ON_OFF,		  {2,0x21,0x02}},	          	  // send or send XIT Offset
     {CIV_C_RADIO_OFF,		    {2,0x18,0x00}},	          	  // Turn Off the radio
     {CIV_C_RADIO_ON,		    {2,0x18,0x01}},	          	  // Turn on the radio
-    {CIV_C_SCOPE_ON,        {3,0x27,0x10,0x01}},          // send/read Scope ON
-    {CIV_C_SCOPE_OFF,       {3,0x27,0x10,0x00}},          // send/read Scope OFF
-    {CIV_C_SCOPE_ALL,       {1,0x27}}                     // send/read Scope OFF
+    {CIV_C_SCOPE_ON,        {3,0x27,0x11,0x01}},          // send/read Scope wave data output ON
+    {CIV_C_SCOPE_OFF,       {3,0x27,0x11,0x00}},          // send/read Scope wave data output OFF
+    {CIV_C_SCOPE_ALL,       {1,0x27}}                     // send/read Scope catch all to avoid no match found error outputs
 };
 
 //
