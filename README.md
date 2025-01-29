@@ -8,6 +8,8 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
+28 Jan 2025 - Added ability to detect on USB connection the radio address (vs. just startup).  On detection it will load frequency tables for the 705 or the 905.  The 9700 should work with the 905 table as they share the same 3 lower bands. I believe I am ignoring sub-VFO frequency messages, that needs to be tested.  The 9700 in particular.  I also have working CI-V bridging between USB to USB and USB to hardware serial, and I added a 3rd serial port for debugging that bidirectional traffic.  Also added sime code to light up the onboard RGB LED in different colors for troublehooting as it is too bright to leave on inside a case.  It is working with WSJT-X and wfView.  wfView is pulling CI-V spectrum data resulting in a lot of USB traffic.  Initially I had to use manual polling in wfView to slow things down some, it is better now but likely can use some more perf tweaking. 
+
 25 Jan 2025 -  Received remaining needed parts except for a pair of 3-to-8 line decoder chips on the Remote board I forgot to order.  The main concern was the pluggable terminal blocks, which have captivation screws, woudl properly fit 
 
 ![20250123_123705](https://github.com/user-attachments/assets/439ef68b-d986-4bab-92c9-cd592de17d4c)
