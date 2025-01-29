@@ -10,6 +10,11 @@
 
 28 Jan 2025 - Added ability to detect on USB connection the radio address (vs. just startup).  On detection it will load frequency tables for the 705 or the 905.  The 9700 should work with the 905 table as they share the same 3 lower bands. I believe I am ignoring sub-VFO frequency messages, that needs to be tested.  The 9700 in particular.  I also have working CI-V bridging between USB to USB and USB to hardware serial, and I added a 3rd serial port for debugging that bidirectional traffic.  Also added sime code to light up the onboard RGB LED in different colors for troublehooting as it is too bright to leave on inside a case.  It is working with WSJT-X and wfView.  wfView is pulling CI-V spectrum data resulting in a lot of USB traffic.  Initially I had to use manual polling in wfView to slow things down some, it is better now but likely can use some more perf tweaking. 
 
+The PCB is now fully at home in the plastic end panel Hammond case.  It is sitting next to the slightly smaller prototype box.
+
+![{1C17655E-42E6-4F17-A307-2185ECCC2DDA}](https://github.com/user-attachments/assets/a5133237-45d0-4aec-b7f7-f5f4a5117d80)
+
+
 25 Jan 2025 -  Received remaining needed parts except for a pair of 3-to-8 line decoder chips on the Remote board I forgot to order.  The main concern was the pluggable terminal blocks, which have captivation screws, woudl properly fit 
 
 ![20250123_123705](https://github.com/user-attachments/assets/439ef68b-d986-4bab-92c9-cd592de17d4c)
