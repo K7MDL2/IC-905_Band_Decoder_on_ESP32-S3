@@ -432,8 +432,11 @@ static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_
     case CDC_ACM_HOST_DEVICE_DISCONNECTED:
         ESP_LOGI(TAG, "Device suddenly disconnected");
         USBH_connected = false;
+        ledc_init();
         PowerOn_LED(2);  // Flash Power On LED if no radio connection
         radio_address = ALL_RADIOS;
+        radio_address_received = 0;
+        init_done = 0;
         ESP_ERROR_CHECK(cdc_acm_host_close(event->data.cdc_hdl));
         xSemaphoreGive(device_disconnected_sem);
         break;
@@ -526,11 +529,16 @@ static void usb_loop_task(void *arg)
                 }
             }
             
-            if (!USBH_connected && init_done)
-                PowerOn_LED(2);  // Flash Power On LED if no radio connection
-            else
+            if (USBH_connected && init_done) {
                 PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
-            
+            }
+            else if (USBH_connected) {
+                PowerOn_LED(2);  // Flash Power On LED if no radio connection but have a USB connection to something
+            }
+            else {
+                PowerOn_LED(0);  // Turn off PowerOn LED if no usb connection
+            }
+
             vTaskDelay(pdMS_TO_TICKS(100));
 
             if (PTT && band && init_done)  // only flash for valid band (not band 0)
@@ -1483,18 +1491,21 @@ extern "C" void app_main(void)  // for .cpp files
         .user_arg = NULL
     };
 
-    while (true) {
+    while (true) 
+    {
+        radio_address_received = 0;
+        init_done = 0;
+        PowerOn_LED(0);
+
         //cdc_acm_dev_hdl_t cdc_dev = NULL;
 
         // Open USB device from tusb_serial_device example example. Either single or dual port configuration.
-        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", CDC_HOST_ANY_VID, CDC_HOST_ANY_PID);
-       
-       esp_err_t err = cdc_acm_host_open(CDC_HOST_ANY_VID, CDC_HOST_ANY_PID, 0, &dev_config, &cdc_dev);
-        //esp_err_t err = cdc_acm_host_open(USB_DEVICE_VID, USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
+        ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_VID, USB_DEVICE_PID);
+        esp_err_t err = cdc_acm_host_open(USB_DEVICE_VID, USB_DEVICE_PID, 0, &dev_config, &cdc_dev);
        
         if (ESP_OK != err) {
-            //ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID);
-            //err = cdc_acm_host_open(USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
+            ESP_LOGI(TAG, "Opening CDC ACM device 0x%04X:0x%04X...", USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID);
+            err = cdc_acm_host_open(USB_DEVICE_DUAL_VID, USB_DEVICE_DUAL_PID, 0, &dev_config, &cdc_dev);
             if (ESP_OK != err) {
                 ESP_LOGI(TAG, "Failed to open device");
                 continue;
@@ -1508,27 +1519,28 @@ extern "C" void app_main(void)  // for .cpp files
         //ESP_ERROR_CHECK(cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)EXAMPLE_TX_STRING, strlen(EXAMPLE_TX_STRING), EXAMPLE_TX_TIMEOUT_MS));
         
         // Test Line Coding commands: Get current line coding, change it 9600 7N1 and read again
-        ESP_LOGI(TAG, "Setting up line coding");
-        cdc_acm_line_coding_t line_coding;
-        ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
-        ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
-                 line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
+        //ESP_LOGI(TAG, "Setting up line coding");
+        //cdc_acm_line_coding_t line_coding;
+        //ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
+        //ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
+        //         line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
 
-        line_coding.dwDTERate = 115200;
-        line_coding.bDataBits = 8;
-        line_coding.bParityType = 1;
-        line_coding.bCharFormat = 1;
-        ESP_ERROR_CHECK(cdc_acm_host_line_coding_set(cdc_dev, &line_coding));
-        ESP_LOGI(TAG, "Line Set: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
-                 line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
+        //line_coding.dwDTERate = 115200;
+        //line_coding.bDataBits = 8;
+        //line_coding.bParityType = 1;
+        //line_coding.bCharFormat = 1;
+        //ESP_ERROR_CHECK(cdc_acm_host_line_coding_set(cdc_dev, &line_coding));
+        //ESP_LOGI(TAG, "Line Set: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
+        //         line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
 
-        ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
-        ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
-                line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
+        //ESP_ERROR_CHECK(cdc_acm_host_line_coding_get(cdc_dev, &line_coding));
+        //ESP_LOGI(TAG, "Line Get: Rate: %"PRIu32", Stop bits: %"PRIu8", Parity: %"PRIu8", Databits: %"PRIu8"",
+        //        line_coding.dwDTERate, line_coding.bCharFormat, line_coding.bParityType, line_coding.bDataBits);
       
-        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
+        //ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
         
         USBH_connected = true;
+        PowerOn_LED(2);
 
         // We can now send to CI-V
         vTaskDelay(pdMS_TO_TICKS(200));  // Time for radio to to be ready for comms after connection
@@ -1542,58 +1554,65 @@ extern "C" void app_main(void)  // for .cpp files
         sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
         vTaskDelay(pdMS_TO_TICKS(100));
 
-        while (radio_address == 0 || frequency == 0) {
+        while (radio_address == 0 || frequency == 0) 
+        {
             ESP_LOGI(TAG, "***Get frequency from radio");
             sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
             vTaskDelay(pdMS_TO_TICKS(100));
 
             ESP_LOGI(TAG, "***Get CI-V address from radio");
-            Get_Radio_address();
+            if (Get_Radio_address() > 4) {
+                PowerOn_LED(2);
+                break;
+            }
             vTaskDelay(pdMS_TO_TICKS(100));  // Time for radio to to beready for comms after connection
+            
+            if (radio_address_received)
+            {
+                // Get started by retrieving frequency, mode, time & location and time offset.
+                ESP_LOGI(TAG, "***Get extended mode info from radio");
+                sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
+                vTaskDelay(pdMS_TO_TICKS(20));
+                
+                ESP_LOGI(TAG, "***Get UTC Offset from radio");
+                if (radio_address == IC905)                  //905
+                    sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
+                else if (radio_address == IC705)             // 705
+                    sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
+                vTaskDelay(pdMS_TO_TICKS(20));
+                
+                ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
+                sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
+                vTaskDelay(pdMS_TO_TICKS(20));
+
+                ESP_LOGI(TAG, "***Get selected VFO freq from radio.");
+                sendCatRequest(CIV_C_F25A, 0, 0); 
+                vTaskDelay(pdMS_TO_TICKS(100));
+
+                //ESP_LOGI(TAG, "***Get a BSR from radio.");
+                //read_BSTACK_from_Radio(5, 3);
+                //vTaskDelay(pdMS_TO_TICKS(20));
+                //SetFreq(frequency); 
+                //vTaskDelay(pdMS_TO_TICKS(100));
+
+                ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
+                vTaskDelay(pdMS_TO_TICKS(100));
+                
+                #ifdef CIV_SERIAL  // pass through PC messages to radi
+                    esp_log_level_set("*", ESP_LOG_NONE);
+                    init();
+                    xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);            
+                #endif
+
+                #ifdef UART_DEBUG
+                    init2();
+                    //xTaskCreate(tx2_task, "uart_tx2_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
+                #endif
+
+                init_done = 1;
+                PowerOn_LED(1);
+            }
         }
-        
-        // Get started by retrieving frequency, mode, time & location and time offset.
-        ESP_LOGI(TAG, "***Get extended mode info from radio");
-        sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-        vTaskDelay(pdMS_TO_TICKS(20));
-        
-        ESP_LOGI(TAG, "***Get UTC Offset from radio");
-        if (radio_address == IC905)                  //905
-            sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
-        else if (radio_address == IC705)             // 705
-            sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        
-        ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
-        sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(20));
-
-        ESP_LOGI(TAG, "***Get selected VFO freq from radio.");
-        sendCatRequest(CIV_C_F25A, 0, 0); 
-        vTaskDelay(pdMS_TO_TICKS(100));
-
-        //ESP_LOGI(TAG, "***Get a BSR from radio.");
-        //read_BSTACK_from_Radio(5, 3);
-        //vTaskDelay(pdMS_TO_TICKS(20));
-        //SetFreq(frequency); 
-        //vTaskDelay(pdMS_TO_TICKS(100));
-
-        ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
-        vTaskDelay(pdMS_TO_TICKS(100));
-        
-        #ifdef CIV_SERIAL  // pass through PC messages to radi
-            esp_log_level_set("*", ESP_LOG_NONE);
-            init();
-            xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);            
-        #endif
-
-        #ifdef UART_DEBUG
-            init2();
-            //xTaskCreate(tx2_task, "uart_tx2_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
-        #endif
-
-        init_done = 1;
-
         // usb_loop_task() is where our program runs within now.  
         // handler_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.

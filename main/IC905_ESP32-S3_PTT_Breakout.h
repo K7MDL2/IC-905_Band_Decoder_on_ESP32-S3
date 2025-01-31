@@ -92,6 +92,9 @@
 #elif (RADIO_ADDR == IC9700)
   #define USB_DEVICE_VID          (0x10C4)
   #define USB_DEVICE_PID          (0xEA60) // IC-9700
+#else
+  #define USB_DEVICE_VID          (CDC_HOST_ANY_VID)
+  #define USB_DEVICE_PID          (CDC_HOST_ANY_PID)
 #endif
   
 // Will also look for a 2nd port in case of switching to a dev board.
