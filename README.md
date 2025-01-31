@@ -8,6 +8,11 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
+30 Jan 2025 - Tested on a IC-9700. The USB on the 9700 uses a Silicon Labs CP-2104 bridge chip and while checking Line state it crashed (error: Unsupported).  I found I do not need to deal with line state so skipped that and I can now connect to a CP-2104 device port.  The ESP32-S3-DevKitC COM port uses the CP-2104 so it is easy to test. I still need to test it at the CI-V level on a 9700 again.   I beefed up the USB disconnect/reconnect recovery actions and now the green Power LED has 3 states.  
+1. No USB connection = all lights OFF resetting any band lights that may have been on previously
+2. USB connection but no radio address = Flashing green Power LED, no band lights
+3. USB Connection and Radio address detected = Solid green Power LED and and light will be on.
+
 28 Jan 2025 - Added ability to detect on USB connection the radio address (vs. just startup).  On detection it will load frequency tables for the 705 or the 905.  The 9700 should work with the 905 table as they share the same 3 lower bands. I believe I am ignoring sub-VFO frequency messages, that needs to be tested on the 9700 in particular.  I also have CI-V bridging working between USB to USB and USB to hardware serial, and I added a 3rd serial port for debugging that bidirectional traffic.  Added code to light up the onboard RGB LED in different colors for troublehooting.  It is too bright to leave on inside a case so I have it disabled.  The CI-V bridging is working with WSJT-X and wfView.  wfView is pulling CI-V spectrum data resulting in a lot of USB traffic.  Initially I had to use manual polling in wfView to slow things down some, it is better now but likely can use some more perf tweaking. 
 
 The PCB is now fully at home in the plastic end panel Hammond case.  Here it is sitting next to the slightly smaller prototype box.
