@@ -8,6 +8,10 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
+1 Feb 2025.  Found an error on the Remote board schematics and PCB with PCB traces.  Corrected the PCB, now V1.1.  See PCB Files section.  A Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications deails how to cut and jumper the V1.0 (20-January-2025) board.
+
+Added #define REMOTE_BOARD to activate predefined BCD patterns for the Remote Band Decoder board.  See Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board for details.  Created a predefined build for it also.  
+
 30 Jan 2025 - Tested on a IC-9700. The USB on the 9700 uses a Silicon Labs CP-2104 bridge chip and while checking Line state it crashed (error: Unsupported).  I found I do not need to deal with line state so skipped that and I can now connect to a CP-2104 device port.  The ESP32-S3-DevKitC COM port uses the CP-2104 so it is easy to test. I still need to test it at the CI-V level on a 9700 again.   I beefed up the USB disconnect/reconnect recovery actions and now the green Power LED has 3 states.  
 1. No USB connection = all lights OFF resetting any band lights that may have been on previously
 2. USB connection but no radio address = Flashing green Power LED, no band lights
