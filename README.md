@@ -8,7 +8,7 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
 
-1 Feb 2025.  Found an error on the Remote board schematics and PCB with PCB traces.  Corrected the PCB, now V1.1.  See PCB Files section.  A Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications deails how to cut and jumper the V1.0 (20-January-2025) board.
+1 Feb 2025.  Found an error on the Remote board schematics and PCB with some shorted PCB traces.  Corrected the PCB file, now V1.1.  See PCB Files section.  A Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications details how to cut and jumper the V1.0 (20-January-2025) board.
 
 Added #define REMOTE_BOARD to activate predefined BCD patterns for the Remote Band Decoder board.  See Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board for details.  Created a predefined build for it also.  
 
