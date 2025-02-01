@@ -82,22 +82,42 @@ enum band_idx { DUMMY,
 #define DECODE_INPUT_BAND10G      6    //10G
 
 
-// Band Decode Output pattern - default is  1 of 6 pattern.  Can make it anything you need.
-#define DECODE_BAND_DUMMY    (0x00)    //Dummy Row
-#define DECODE_BAND144       (0x01)    //144
-#define DECODE_BAND430       (0x02)    //432
-#define DECODE_BAND1200      (0x04)    //1296
-#define DECODE_BAND2300      (0x08)    //2400
-#define DECODE_BAND5600      (0x10)    //5760
-#define DECODE_BAND10G       (0x20)    //10G
+#ifdef REMOTE_BOARD 
+    // Band Decode Output pattern is 3 wire.  Account for inversion on USB side
+    #define DECODE_BAND_DUMMY    (0x00)    //Dummy Row - same as Band 1.  Buffered output is 0xFF
+    #define DECODE_BAND144       (0x00)    //144 -  Buffered output will be 0xFF for 111 at the remote board band 1
+    #define DECODE_BAND430       (0x01)    //432 -  Buffered output will be 0xFE for 110 at the remote board band 2
+    #define DECODE_BAND1200      (0x02)    //1296 - Buffered output will be 0xFD for 101 at the remote board band 3
+    #define DECODE_BAND2300      (0x03)    //2400 - Buffered output will be 0xFC for 100 at the remote board band 4
+    #define DECODE_BAND5600      (0x04)    //5760 - Buffered output will be 0xFB for 011 at the remote board band 5
+    #define DECODE_BAND10G       (0x05)    //10G -  Buffered output will be 0xFA for 010 at the remote board band 6
 
-// inverted for buffer.  Set low for TX=OFF, raise high for TX=ON and make TX=GND on buffer output
-#define DECODE_DUMMY_PTT     (0x00)    //Dummy Row
-#define DECODE_BAND144_PTT   (0x01)    //144_PTT
-#define DECODE_BAND430_PTT   (0x02)    //432_PTT
-#define DECODE_BAND1200_PTT  (0x04)    //1296_PTT
-#define DECODE_BAND2300_PTT  (0x08)    //2400_PTT
-#define DECODE_BAND5600_PTT  (0x10)    //5760_PTT
-#define DECODE_BAND10G_PTT   (0x20)    //10G_PTT
+    // inverted for buffer.  Set 4th port low at remote board for TX=ON, raise high for TX=OFF.  Use the same PTT port regardless of band
+    #define DECODE_DUMMY_PTT     (0x00)    //Dummy Row
+    #define DECODE_BAND144_PTT   (0x08)    //144_PTT - set high because of inversion in USB side to get low for TX at remote input
+    #define DECODE_BAND430_PTT   (0x08)    //432_PTT
+    #define DECODE_BAND1200_PTT  (0x08)    //1296_PTT
+    #define DECODE_BAND2300_PTT  (0x08)    //2400_PTT
+    #define DECODE_BAND5600_PTT  (0x08)    //5760_PTT
+    #define DECODE_BAND10G_PTT   (0x08)    //10G_PTT
+#else   // Normal 1 of 6 outputs pattern]
+    // Band Decode Output pattern - default is  1 of 6 pattern.  Can make it anything you need.
+    #define DECODE_BAND_DUMMY    (0x00)    //Dummy Row
+    #define DECODE_BAND144       (0x01)    //144
+    #define DECODE_BAND430       (0x02)    //432
+    #define DECODE_BAND1200      (0x04)    //1296
+    #define DECODE_BAND2300      (0x08)    //2400
+    #define DECODE_BAND5600      (0x10)    //5760
+    #define DECODE_BAND10G       (0x20)    //10G
 
-#endif
+    // inverted for buffer.  Set low for TX=OFF, raise high for TX=ON and make TX=GND on buffer output
+    #define DECODE_DUMMY_PTT     (0x00)    //Dummy Row
+    #define DECODE_BAND144_PTT   (0x01)    //144_PTT
+    #define DECODE_BAND430_PTT   (0x02)    //432_PTT
+    #define DECODE_BAND1200_PTT  (0x04)    //1296_PTT
+    #define DECODE_BAND2300_PTT  (0x08)    //2400_PTT
+    #define DECODE_BAND5600_PTT  (0x10)    //5760_PTT
+    #define DECODE_BAND10G_PTT   (0x20)    //10G_PTT
+#endif  // REMOTE_BOARD 
+
+#endif  // header file Decoder.h
