@@ -52,7 +52,7 @@
 
 //#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
 
-#define REMOTE_BOARD          // Use BCD output patterns instead of 1 of 6 to control the Remote BCD Band Decoder PCB.
+//#define REMOTE_BOARD          // Use BCD output patterns instead of 1 of 6 to control the Remote BCD Band Decoder PCB.
 
 
 // --------------------------------------------------------------------------------------------------------
