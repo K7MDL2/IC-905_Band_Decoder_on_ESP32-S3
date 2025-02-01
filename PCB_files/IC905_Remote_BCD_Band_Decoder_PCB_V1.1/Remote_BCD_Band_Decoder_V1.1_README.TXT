@@ -1,8 +1,8 @@
 Remote_BCD_Band_Decoder_V1.1_README.TXT - 31-Jan-2025
 
-V1.1 fixes an error on the V1.0 board from 20-Jan 2025.  On the original board the 3 BCD input lines between U4, U5 U1 and RN1 were shorted on the schematic and during layout resulted in all connection shorted with a single trace.  Also added silkscreen labels for connector and pin headers.
+V1.1 fixes an error on the V1.0 board from 20-Jan 2025.  On the original board the 3 BCD input lines between U4, U5 U1 and RN1 were shorted on the schematic and during layout resulted in all connection shorted with a single trace.  Also added silkscreen labels for connector and pin headers.  The BOM has 1 change, the value of RN1 was 1K, it is now 220ohm for a bit stiffer pullup effect, same as the USB Decoder board.
 
-Correcting a V1.0 board requires cutting some traces and soldering in jumper wires.  The traces are easy to access.  Details are in the Wiki Pages.
+Correcting a V1.0 board requires cutting some traces and soldering in jumper wires.  The traces are easy to access.  Details are in the Wiki Pages at https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications.
 
 V1.0 is obsolete and should not be ordered.  Use this V1.1 or newer revisions instead.  V1.0 is retained on this repository as a reference for the up to 20 existing boards someone may try to build.
 
