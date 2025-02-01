@@ -316,7 +316,8 @@ static void gpio_PTT_Input(void* arg)
         esp_log_level_set(TX_TASK2_TAG, ESP_LOG_INFO);
         while (1) {
             sendData2(TX_TASK2_TAG, "Hello world\0");
-            vTaskDelay(2000 / portTICK_PERIOD_MS);
+            //vTaskDelay(2000 / portTICK_PERIOD_MS);
+            taskYIELD();
         }
     }
     */
@@ -358,6 +359,7 @@ static void gpio_PTT_Input(void* arg)
         while (1) {
             sendData(TX_TASK_TAG, "Hello world\0");
             vTaskDelay(2000 / portTICK_PERIOD_MS);
+            taskYIELD();
         }
     }
     */
@@ -382,7 +384,8 @@ static void gpio_PTT_Input(void* arg)
                 }
             }
             //vTaskDelay(portTICK_PERIOD_MS);
-            vTaskDelay(pdMS_TO_TICKS(10));
+            //vTaskDelay(pdMS_TO_TICKS(10));
+            taskYIELD();
         }
         free(data);
     }
@@ -468,7 +471,8 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
+        //vTaskDelay(pdMS_TO_TICKS(10));
+        taskYIELD();
     }
 }
 
@@ -552,8 +556,8 @@ static void usb_loop_task(void *arg)
             }
 
         #endif // USE_LEDS
-
-        vTaskDelay(pdMS_TO_TICKS(100));
+        taskYIELD();
+        //vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -855,6 +859,9 @@ void PTT_Output(uint8_t band, bool PTT_state)
 void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
 {   
     uint8_t PTT_state = _PTT_state ? 0xFF : 0;
+
+    if (!_PTT_state)
+        pattern = DECODE_DUMMY_PTT;  // resets state for RX
 
     char bin_num[9] ={};
     printBinaryWithPadding(pattern, bin_num);
