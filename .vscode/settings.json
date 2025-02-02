@@ -2,7 +2,7 @@
     "idf.openOcdConfigs": [
         "board/esp32s3-bridge.cfg"
     ],
-    "idf.portWin": "COM20",
+    "idf.portWin": "COM8",
     "idf.flashType": "UART",
     "files.associations": {
         "cdc_acm_host.h": "c",
@@ -14,7 +14,11 @@
         "cstddef": "c",
         "gpio_filter.h": "c",
         "chrono": "cpp",
-        "m5unified.h": "c"
+        "m5unified.h": "c",
+        "array": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "span": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled",
     "idf.espIdfPathWin": "c:\\Users\\k7mdl\\esp\\v5.4\\esp-idf",
