@@ -94,13 +94,13 @@ enum band_idx { DUMMY,
 
     // inverted for buffer.  Set 4th port low at remote board for TX=ON, raise high for TX=OFF.  Use the same PTT port regardless of band
     #define DECODE_DUMMY_PTT     (0x00)    //Dummy Row
-    #define DECODE_BAND144_PTT   (0x08)    //144_PTT - set high because of inversion in USB side to get low for TX at remote input
-    #define DECODE_BAND430_PTT   (0x08)    //432_PTT
-    #define DECODE_BAND1200_PTT  (0x08)    //1296_PTT
-    #define DECODE_BAND2300_PTT  (0x08)    //2400_PTT
-    #define DECODE_BAND5600_PTT  (0x08)    //5760_PTT
-    #define DECODE_BAND10G_PTT   (0x08)    //10G_PTT
-#else   // Normal 1 of 6 outputs pattern]
+    #define DECODE_BAND144_PTT   (0x01)    //144_PTT - set high because of inversion in USB side to get low for TX at remote input
+    #define DECODE_BAND430_PTT   (0x01)    //432_PTT
+    #define DECODE_BAND1200_PTT  (0x01)    //1296_PTT
+    #define DECODE_BAND2300_PTT  (0x01)    //2400_PTT
+    #define DECODE_BAND5600_PTT  (0x01)    //5760_PTT
+    #define DECODE_BAND10G_PTT   (0x01)    //10G_PTT
+#else   // Normal 1 of 6 outputs pattern
     // Band Decode Output pattern - default is  1 of 6 pattern.  Can make it anything you need.
     #define DECODE_BAND_DUMMY    (0x00)    //Dummy Row
     #define DECODE_BAND144       (0x01)    //144
