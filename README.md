@@ -4,9 +4,14 @@
 | Boards Used | ![alt text][esp32s3DevKitC1] | ![alt text][M5AtomS3] |
 | --- | --- | --- |
 
-[esp32s3]: https://img.shields.io/badge/-ESP32_S3-green "ESP32-S3"
-[esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
-[M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
+| Supported Radios | ![alt text][IC905] | ![alt text][IC705] |
+| --- | --- | --- |
+
+[IC905]: https://img.shields.io/badge/IC905-violet "IC-905"
+[IC705]: https://img.shields.io/badge/IC705-red "IC-705"
+[esp32s3]: https://img.shields.io/badge/ESP32_S3-green "ESP32-S3"
+[esp32s3DevKitC1]: https://img.shields.io/badge/ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
+[M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
 9 Feb 2025.  The USB decoder is working well with the Remote BCD Decoder board.  I have a precompiled image compiled with the 3 wire BCD + PTT wire pattern for each band.  See the Wiki pages for more info.   
 
