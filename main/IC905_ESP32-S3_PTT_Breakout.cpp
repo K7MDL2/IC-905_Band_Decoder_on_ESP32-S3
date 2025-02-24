@@ -316,8 +316,8 @@ static void gpio_PTT_Input(void* arg)
         esp_log_level_set(TX_TASK2_TAG, ESP_LOG_INFO);
         while (1) {
             sendData2(TX_TASK2_TAG, "Hello world\0");
-            //vTaskDelay(2000 / portTICK_PERIOD_MS);
-            taskYIELD();
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+            //taskYIELD();
         }
     }
     */
@@ -359,7 +359,7 @@ static void gpio_PTT_Input(void* arg)
         while (1) {
             sendData(TX_TASK_TAG, "Hello world\0");
             vTaskDelay(2000 / portTICK_PERIOD_MS);
-            taskYIELD();
+            //taskYIELD();
         }
     }
     */
@@ -384,8 +384,8 @@ static void gpio_PTT_Input(void* arg)
                 }
             }
             //vTaskDelay(portTICK_PERIOD_MS);
-            //vTaskDelay(pdMS_TO_TICKS(10));
-            taskYIELD();
+            vTaskDelay(pdMS_TO_TICKS(10));
+            //taskYIELD();
         }
         free(data);
     }
@@ -471,8 +471,8 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
-        //vTaskDelay(pdMS_TO_TICKS(10));
-        taskYIELD();
+        vTaskDelay(pdMS_TO_TICKS(10));
+        //taskYIELD();
     }
 }
 
@@ -556,8 +556,8 @@ static void usb_loop_task(void *arg)
             }
 
         #endif // USE_LEDS
-        taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(100));
+        //taskYIELD();
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -1435,7 +1435,7 @@ extern "C" void app_main(void)  // for .cpp files
 
     #ifdef USE_LEDS
         ledc_init();    
-        PowerOn_LED(2);  // set power LED to FLASH until we have a valid USB connection to radio
+        PowerOn_LED(1);  // set power LED to ON briefly to show sign of life, will be turned off at start of USB connection loop later
     #else  // USE RGB pin 48 or external LED via GPIO for the red PTT in LED on pin 47
         gpio_reset_pin(GPIO_NUM_48);
         gpio_set_direction(GPIO_NUM_48, GPIO_MODE_OUTPUT_OD);  // using RGB LED as simple PTT LED

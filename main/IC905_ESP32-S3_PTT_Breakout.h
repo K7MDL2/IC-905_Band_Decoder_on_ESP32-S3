@@ -103,9 +103,10 @@
 // VID and PID for ESP32-S3 dev kit modules running acm device firmware
 //#define EXAMPLE_USB_DEVICE_VID      (0x303A)
 //#define EXAMPLE_USB_DEVICE_PID      (0x4001) // 0x303A:0x4001 (TinyUSB CDC device)
-#define USB_DEVICE_DUAL_VID (0x303A)
-#define USB_DEVICE_DUAL_PID (0x4001) // 0x303A:0x4002 (TinyUSB Dual CDC device)
-
+//#define USB_DEVICE_DUAL_VID (0x303A)
+//#define USB_DEVICE_DUAL_PID (0x4001) // 0x303A:0x4002 (TinyUSB Dual CDC device)
+#define USB_DEVICE_DUAL_VID          (CDC_HOST_ANY_VID)
+#define USB_DEVICE_DUAL_PID          (CDC_HOST_ANY_PID)
 #define TX_STRING           ("IC905 PTT Breakout Test String")
 #define TX_TIMEOUT_MS       (1000)
 
