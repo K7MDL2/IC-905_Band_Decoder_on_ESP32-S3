@@ -4,9 +4,20 @@
 | Boards Used | ![alt text][esp32s3DevKitC1] | ![alt text][M5AtomS3] |
 | --- | --- | --- |
 
-[esp32s3]: https://img.shields.io/badge/-ESP32_S3-green "ESP32-S3"
-[esp32s3DevKitC1]: https://img.shields.io/badge/-ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
-[M5AtomS3]: https://img.shields.io/badge/-M5AtomS3-orange "M5AtomS3"
+| Supported Radios | ![alt text][IC905] | ![alt text][IC705] |
+| --- | --- | --- |
+
+[IC905]: https://img.shields.io/badge/IC905-violet "IC-905"
+[IC705]: https://img.shields.io/badge/IC705-red "IC-705"
+[esp32s3]: https://img.shields.io/badge/ESP32_S3-green "ESP32-S3"
+[esp32s3DevKitC1]: https://img.shields.io/badge/ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
+[M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
+
+9 Feb 2025.  The USB decoder is working well with the Remote BCD Decoder board.  I have a precompiled image compiled with the 3 wire BCD + PTT wire pattern for each band.  See the Wiki pages for more info.   
+
+Attempt #2 to make it work on the IC-9700 failed.  It uses a UART to USB bridge chip and in theory should work with VCP drivers but while I can enumerate all the devices fine, I cannot open a serial comm channel yet.   Worst case is I use the headphone jack wired to a UART and do it the analog way. 
+
+In a parallel project I now have a ethernet band decoder for the 905 only.  In combination with a managed switch and a POE inserter I can sniff the packets between the control head and RF Unit and extract frequency and PTT events and more.  IT is runnign on a RPi4B and 6 band and 6 PTT lines are output on GPIO pins.  It can connect to this projectes Remote BCD Band Decoder board or any otehr IO like opto or relay boards.
 
 1 Feb 2025.  Found an error on the Remote board schematics and PCB with some shorted PCB traces.  Corrected the PCB file, now V1.1.  See PCB Files section.  A Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications details how to cut and jumper the V1.0 (20-January-2025) board.
 
