@@ -15,15 +15,17 @@
 
 9 Feb 2025.  The USB decoder is working well with the Remote BCD Decoder board.  I have a precompiled image compiled with the 3 wire BCD + PTT wire pattern for each band.  See the Wiki pages for more info.   
 
-Attempt #2 to make it work on the IC-9700 failed.  It uses a UART to USB bridge chip and in theory should work with VCP drivers but while I can enumerate all the devices fine, I cannot open a serial comm channel yet.   Worst case is I use the headphone jack wired to a UART and do it the analog way. 
+Attempt #2 to make it work on the IC-9700 failed.  It uses a UART to USB bridge chip and in theory should work with VCP drivers but while I can enumerate all the devices fine, I cannot open a serial comm channel yet.   Worst case is I use the headphone jack wired to a UART and do it the analog way.  Turns out someting I added broke normal USB serial so I need to start over.
 
-In a parallel project I now have a ethernet band decoder for the 905 only.  In combination with a managed switch and a POE inserter I can sniff the packets between the control head and RF Unit and extract frequency and PTT events and more.  IT is runnign on a RPi4B and 6 band and 6 PTT lines are output on GPIO pins.  It can connect to this projectes Remote BCD Band Decoder board or any otehr IO like opto or relay boards.
+In a parallel project I now have a ethernet band decoder for the 905 only. https://github.com/K7MDL2/IC905_Ethernet_Decoder  In combination with a managed switch (or switches) and a POE inserter I can sniff the packets between the control head and RF Unit and extract frequency, PTT events, and more.  It is running on a RPi4B with support for 6 band and 6 PTT lines output on GPIO pins.  It can connect to this projectes Remote BCD Band Decoder board or any other IO like opto or relay boards.
 
 1 Feb 2025.  Found an error on the Remote board schematics and PCB with some shorted PCB traces.  Corrected the PCB file, now V1.1.  See PCB Files section.  A Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board-V1.0-Required-Modifications details how to cut and jumper the V1.0 (20-January-2025) board.
 
 Added #define REMOTE_BOARD to activate predefined BCD patterns for the Remote Band Decoder board.  See Wiki Page https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/Remote-BCD-Band-Decoder-Board for details.  Created a predefined build for it also.  
 
-30 Jan 2025 - Tested on a IC-9700. The USB on the 9700 uses a Silicon Labs CP-2104 bridge chip and while checking Line state it crashed (error: Unsupported).  I found I do not need to deal with line state so skipped that and I can now connect to a CP-2104 device port.  The ESP32-S3-DevKitC COM port uses the CP-2104 so it is easy to test. I still need to test it at the CI-V level on a 9700 again.   I beefed up the USB disconnect/reconnect recovery actions and now the green Power LED has 3 states.  
+30 Jan 2025 - Tested on a IC-9700. The USB on the 9700 uses a Silicon Labs CP-2104 bridge chip and while checking Line state it crashed (error: Unsupported).  I found I do not need to deal with line state so skipped that and I can now connect to a CP-2104 device port.  The ESP32-S3-DevKitC COM port uses the CP-2104 so it is easy to test. I still need to test it at the CI-V level on a 9700 again.   
+
+I beefed up the USB disconnect/reconnect recovery actions and now the green Power LED has 3 states.  
 1. No USB connection = all lights OFF resetting any band lights that may have been on previously
 2. USB connection but no radio address = Flashing green Power LED, no band lights
 3. USB Connection and Radio address detected = Solid green Power LED and and light will be on.
