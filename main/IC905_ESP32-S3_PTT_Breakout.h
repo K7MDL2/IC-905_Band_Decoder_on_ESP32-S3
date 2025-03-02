@@ -110,6 +110,11 @@
 #define TX_STRING           ("IC905 PTT Breakout Test String")
 #define TX_TIMEOUT_MS       (1000)
 
+#define BAUDRATE     (115200)
+#define STOP_BITS    (0)      // 0: 1 stopbit, 1: 1.5 stopbits, 2: 2 stopbits
+#define PARITY       (0)      // 0: None, 1: Odd, 2: Even, 3: Mark, 4: Space
+#define DATA_BITS    (8)
+
 //#define SEE_RAW_RX // see raw hex messages from radio
 //#define SEE_RAW_TX // see raw hex messages from radio
 

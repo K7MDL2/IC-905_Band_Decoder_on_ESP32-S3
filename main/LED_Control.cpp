@@ -178,10 +178,10 @@ extern uint8_t band;
                 if (esp_timer_get_time() >= flash_timer + flash_time *1000) {  
                     if (ledc_get_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH) > 0) {
                         ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, LEDC_OFF_DUTY));    
-                        ESP_LOGI("PowerOn_LED", "Flash LED OFF");
+                        //ESP_LOGI("PowerOn_LED", "Flash LED OFF");
                     } else {
                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_OUTPUT_PWR_ON_CH, led_bright_level/GREEN_DIM_FACTOR));  // Dim the green LED
-                       ESP_LOGI("PowerOn_LED", "Flash LED ON");
+                       //ESP_LOGI("PowerOn_LED", "Flash LED ON");
                     }
                     flash_timer = esp_timer_get_time();
                     update_LED = true;

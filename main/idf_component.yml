@@ -1,8 +1,13 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  idf: ">=5.1.0"
   usb_host_cdc_acm: 2.*
-  idf: '>=4.4'
  ##espressif/i2c_bus: ^1.1.0
   m5stack/m5unified: ^0.2.2
   espressif/led_strip: "^2.4.1"
+  usb_host_ch34x_vcp: "^2"
+  usb_host_cp210x_vcp: "^2"
+  usb_host_ftdi_vcp: "^2"
+  usb_host_vcp: "^1"
+
   
