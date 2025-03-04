@@ -54,6 +54,7 @@
 
 //#define REMOTE_BOARD          // Use BCD output patterns instead of 1 of 6 to control the Remote BCD Band Decoder PCB.
 
+#define USB_KEYING              // Use external keying. When the PTT in jack is active, send DTR over USB to key the radio. Used for sequencing.
 
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values

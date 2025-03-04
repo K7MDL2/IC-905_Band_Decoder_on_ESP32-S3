@@ -292,6 +292,12 @@ static void gpio_PTT_Input(void* arg)
             PTT = (uint8_t) gpio_get_level((gpio_num_t) io_num);  // Invert for buffer
             //ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
             PTT_Output(band, PTT);
+            #ifdef USB_KEYING
+                if (PTT)
+                    ESP_ERROR_CHECK(vcp->set_control_line_state(true, false));
+                else
+                    ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
+            #endif
             display_PTT(PTT, false);
             
             #ifdef USE_LEDS  // toggle PTT LED
