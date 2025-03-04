@@ -112,10 +112,11 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     // the following three commands don't fit for IC7100 !!!
     {CIV_C_DATE,            {4,0x1A,0x05,0x00,0x94}},  		// + 0x20 0x20 0x04 0x27 for 27.4.2020
     {CIV_C_TIME,            {4,0x1A,0x05,0x00,0x95}},  		// + 0x19 0x57 for 19:57
-    //{CIV_C_UTC,             {4,0x1A,0x05,0x00,0x96}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
+    //{CIV_C_UTC,           {4,0x1A,0x05,0x00,0x96}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
     {CIV_C_UTC_READ_905,    {4,0x1A,0x05,0x01,0x81}},     //  Get UTC Offset
-    //{CIV_C_UTC_SEND,        {4,0x1A,0x05,0x00,0x96}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
+    //{CIV_C_UTC_SEND,      {4,0x1A,0x05,0x00,0x96}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
     {CIV_C_UTC_READ_705,    {4,0x1A,0x05,0x01,0x70}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
+    {CIV_C_UTC_READ_9700,   {4,0x1A,0x05,0x01,0x84}},  		// + 0x01,0x00,0x00 = +1h delta of UTC to MEZ
     {CIV_C_DUPLEX_READ,		  {1,0x0C}},          	    	  // read Duplex Offset  - has 3 bytes frequency offset data
     {CIV_C_DUPLEX_SEND,		  {1,0x0D}},	          	    	// send Duplex Offset
     {CIV_C_RIT_XIT,			    {2,0x21,0x00}},          	    // read or send RIT/XIT Offset  - has 3 bytes frequency offset data  XIT and RIT share this Offset value
@@ -126,8 +127,8 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_SCOPE_ON,        {3,0x27,0x11,0x01}},          // send/read Scope wave data output ON
     {CIV_C_SCOPE_OFF,       {3,0x27,0x11,0x00}},          // send/read Scope wave data output OFF
     {CIV_C_SCOPE_ALL,       {1,0x27}},                    // send/read Scope catch all to avoid no match found error outputs
-    {CIV_R_NO_GOOD,         {2,0xFA,0xFD}},                    // Message received from radio was no good
-    {CIV_R_GOOD,            {2,0xFB,0xFD}}                     // Message received from radio was good
+    {CIV_R_NO_GOOD,         {1,0xFA}},                    // Message received from radio was no good
+    {CIV_R_GOOD,            {1,0xFB}}                     // Message received from radio was good
 };
 
 //
@@ -571,6 +572,7 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         break;       
     }
 
+    case CIV_C_UTC_READ_9700:
     case CIV_C_UTC_READ_905:
     case CIV_C_UTC_READ_705:  {
         //Serial.printf("processCatMessages: UTC Offset, Len = %d\n", data_len);
@@ -597,6 +599,11 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
     }  // UTC Offset
 
     case CIV_C_MY_POSIT_READ: {
+        //ESP_LOGI(TAG, "Position Read = data_len = %d", data_len);
+        if (rd_buffer[data_start_idx] == 0xFF) {
+          ESP_LOGI(TAG, "Position/Time Not available, GPS connected? - Data = %X", rd_buffer[data_start_idx]);  
+          return;
+        }
         // if (data_len == 23) then altitude is invalid and not sent out, skip
         bool skip_altitude = false;
         if (data_len == 23)
@@ -948,9 +955,11 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         break;
     }
 
-    case CIV_R_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Accepted by Radio"); break;
+    case CIV_R_GOOD: //ESP_LOGI(TAG, "CIV_Action: *** Command Accepted by Radio"); 
+        break;
 
-    case CIV_R_NO_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Rejected by Radio"); break;
+    case CIV_R_NO_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Rejected by Radio"); 
+        break;
 
     case CIV_C_SCOPE_OFF:
     case CIV_C_SCOPE_ON:
