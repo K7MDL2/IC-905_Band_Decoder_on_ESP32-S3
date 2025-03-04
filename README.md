@@ -4,11 +4,12 @@
 | Boards Used | ![alt text][esp32s3DevKitC1] | ![alt text][M5AtomS3] |
 | --- | --- | --- |
 
-| Supported Radios | ![alt text][IC905] | ![alt text][IC705] |
-| --- | --- | --- |
+| Supported Radios | ![alt text][IC905] | ![alt text][IC705] | ![alt text][IC9700] |
+| --- | --- | --- | --- |
 
 [IC905]: https://img.shields.io/badge/IC905-violet "IC-905"
 [IC705]: https://img.shields.io/badge/IC705-red "IC-705"
+[IC9700]: https://img.shields.io/badge/IC905-yellow "IC-9700"
 [esp32s3]: https://img.shields.io/badge/ESP32_S3-green "ESP32-S3"
 [esp32s3DevKitC1]: https://img.shields.io/badge/ESP32_S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
