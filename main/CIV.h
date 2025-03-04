@@ -132,6 +132,8 @@ enum cmds {
     CIV_C_SCOPE_ON,
     CIV_C_SCOPE_OFF,
     CIV_C_SCOPE_ALL,
+    CIV_R_NO_GOOD,
+    CIV_R_GOOD,
     End_of_Cmd_List
 };
 

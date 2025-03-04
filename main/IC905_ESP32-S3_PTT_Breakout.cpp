@@ -6,12 +6,16 @@
  *  for the purpose of activating a selected band output and PTT output unique to each band.
  *  
  *  The program currently supports 6 bands and different model Icom radios, these will have different bands. 
- *  The default band table is for the IC-905.  Upon detecting the radio's CI-V address at startup, 
- *  the appropriate band table content is copied into the band table.
+ *  The default band table is for the IC-905 and the IC-9700.  The alternate band is for the IC-705. 
+ *
+ *  Upon detecting the radio's CI-V address at startup, the appropriate band table content is copied into the band table.
  *  
  *  For 10GHz and higher bands the IC-905 adds 1 extra byte that must be accounted for to decode the BCD encoded frequency
  *  The last data byte sent for frequency is the MSB.
  *
+ *  The IC-9700 uses a CP-2104 USB to UART bridge chip and requires a VCP driver.  
+ *  This is detected automatically on USB connection.  It will auto-switch between standard cdc_acm_host and vcp drivers
+ * 
  *  The radio PTT line (aka SEND output) is wired into this CPU and monitored.  There is a status LED for it.
  *  There are 6 PTT and 6 band enable outputs, with status LEDs for each band
  *  There is a power LED.  It is assigned for power status but can be used for anything as all LEDs are PWM and assignable.
@@ -24,18 +28,20 @@
  *  small color LCD that displays frequency, time/date from radio, BAND, TX status, and location.
  *  I calculate an 8 digit grid square and display it in the debug and on an optional display like the AtomsS3
  *
- *  On bootup the radio is polled for time, location, band/frequency, mode, extended mode, and UTC offset.  
- *  After that it listens for messages only so it does not interfere with PC to Radio CI_V serial bridging between the 2 USB serial ports
+ *  On bootup the radio is polled for time, date, UTC Offset, location, band/frequency, mode, and extended mode.  
+ *  It detects the radio CI-V adress in the first responses. This is reset on each USB disconnect.
+ *  After initial polling it listens for messages only so it does not interfere with PC to Radio CI_V serial bridging between the 2 USB serial ports
  * 
- *  The 2nd USB serial port is presented at TTL level on a jack on the PCB. 
+ *  The DevKitC USB-UART port is presented at TTL level on a jack on the PCB. This may be useful for analog CI-V or you 
+ *  can use a 3rd serial port and wire up jumpers to the CPI IO pins.
  *  This, or other hardware serial port pins may be brought out to a connector and with appropriate level shifting
  *  used for analog to USB CI-V bridging.   Use #define CIV_SERIAL to enable this mode which also shuts off all debug output.
  * 
  *  ---------------------------------------------------------------------------------
- * The USB Serial Host part of this program is based on cdc_acm_host example file from 
  * 
- * SPDX-FileCopyrightText: 2015-2023 Espressif Systems (Shanghai) CO LTD
- *
+ * The USB Serial Host and VCP parts of this program are based on cdc_acm_host vcp example files from 
+ * 
+ * SPDX-FileCopyrightText: 2022-2024 Espressif Systems (Shanghai) CO LTD
  * SPDX-License-Identifier: CC0-1.0
  */
 
@@ -49,19 +55,16 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
-#include "freertos/queue.h"
 #include "freertos/event_groups.h"
 #include "driver/gpio.h"
 #include "driver/gpio_filter.h"
 #include "esp_timer.h"
-#include "usb/usb_host.h"
-
 #include "usb/cdc_acm_host.h"
 #include "usb/vcp_ch34x.hpp"
 #include "usb/vcp_cp210x.hpp"
 #include "usb/vcp_ftdi.hpp"
 #include "usb/vcp.hpp"
-
+#include "usb/usb_host.h"
 #include "time.h"
 #include <sys/time.h>
 #include "driver/ledc.h"
@@ -92,8 +95,6 @@ int sendData2(const char* logName, const char* data);
 uint8_t Get_Radio_address(void);
 int add(char c);
 int remove(void);
-void init_Radio2(void);
-int init_Radio1(void);
 
 // default band table.  This will be overwritten depending on what radio CIV address is detected
 struct Bands bands[NUM_OF_BANDS] = {
@@ -141,7 +142,7 @@ extern char Grid_Square[];
 extern struct Modes_List modeList[];
 //extern char FilStr;
 extern struct cmdList cmd_List[];
-uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows auto-detect on first messages form radio
+volatile uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows auto-detect on first messages form radio
 bool use_wired_PTT = WIRED_PTT;           // Selects source of PTT, wired input or polled state from radio.  Wired is preferred, faster.
 uint8_t read_buffer[64];  //Read buffer
 //uint8_t prev_band = 0xFF;
@@ -166,7 +167,7 @@ uint8_t formatFreq(uint64_t vfo, uint8_t vfo_dec[]);
 extern void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 uint8_t pass_PC_to_radio(void);
 extern uint8_t USBHost_ready;  // 0 = not mounted.  1 = mounted, 2 = system not initialized
-bool USBH_connected = false;
+volatile bool USBH_connected = false;
 extern uint16_t background_color;
 uint64_t frequency = 0;
 extern bool update_radio_settings_flag;
@@ -174,7 +175,7 @@ static const char *TAG = "MAIN";
 static SemaphoreHandle_t device_disconnected_sem;
 uint8_t *r = read_buffer;
 bool msg_done_flag;
-bool get_ext_mode_flag = false;
+volatile bool get_ext_mode_flag = false;
 cdc_acm_dev_hdl_t cdc_dev = NULL;
 uint8_t board_type = 0;
 bool BLE_connected = 0;
@@ -183,28 +184,32 @@ uint8_t brightness = 110;   // 0-255
 uint8_t rotation   = 3;   // 0-3
 struct tm tm;
 time_t t;
-bool init_done = 0;
+volatile bool init_done = 0;
 bool sending = 0;
 static int adc_raw[1][10];
 static int voltage[1][10];
 static bool adc_calibration_init(adc_unit_t unit, adc_channel_t channel, adc_atten_t atten, adc_cali_handle_t *out_handle);
 static void adc_calibration_deinit(adc_cali_handle_t handle);
-uint8_t radio_address_received = 0;
+volatile uint8_t radio_address_received = 0;
 #define RING_SIZE   512
 typedef uint8_t ring_pos_t;
 volatile ring_pos_t ring_head;
 volatile ring_pos_t ring_tail;
 volatile char ring_data[RING_SIZE];
 
+static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg);
+static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_ctx);
 
-const cdc_acm_host_device_config_t dev_config = {
-    .connection_timeout_ms = 1000,
+cdc_acm_host_device_config_t dev_config = {
+    .connection_timeout_ms = 5000, // 5 seconds, enough time to plug the device in or experiment with timeout
     .out_buffer_size = 512,
     .in_buffer_size = 512,
-    .event_cb = NULL,
-    .data_cb = NULL,
-    .user_arg = NULL
+    .event_cb = handle_event,
+    .data_cb = handle_rx,
+    .user_arg = NULL,
 };
+
+auto vcp = std::unique_ptr<CdcAcmDevice>(nullptr);  // This will point to a device when detected in the main loop.
 
 #ifdef PROTOTYPE
     // ADC setup
@@ -421,12 +426,12 @@ static void gpio_PTT_Input(void* arg)
     }
 #endif
 
-namespace esp_usb {
-
 /**
- * @brief Data received from radio callback
+ * @brief Data received callback
  *
- * @param[in] pData     Pointer to received data
+ * Just pass received data to stdout
+ *
+ * @param[in] data     Pointer to received data
  * @param[in] data_len Length of received data in bytes
  * @param[in] arg      Argument we passed to the device open function
  * @return
@@ -436,13 +441,12 @@ namespace esp_usb {
 static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
 {
     //ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
-           // send out to CI-V Serial port
-    
+    //printf("%.*s", data_len, data);
     // add characters to the ring buffer
     int i;
     for (i = 0; i < data_len; i++)
     {
-        add(pData[i]);   
+        add(pData[i]);    // usb loop task will pull this data out
         //ESP_LOG_BUFFER_HEXDUMP("handle_rx-1", &pData[i], 1, ESP_LOG_INFO);
         if (pData[i] == 0xFD)  // end of a complete message, process it.
         {
@@ -450,22 +454,9 @@ static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
             if (init_done)
                 const int txBytes = uart_write_bytes(UART_NUM_0, pData, data_len); 
             #endif
-            ESP_LOG_BUFFER_HEXDUMP("handle_rx-2", pData, i+1, ESP_LOG_INFO);
-            //processCatMessages(pData, data_len);   // call the process in lieu of polling for now
+            //ESP_LOG_BUFFER_HEXDUMP("handle_rx-2", pData, i+1, ESP_LOG_INFO);
         }
     }
-
-    /*   // the previous way - cannot handle multiple messages like the 9700 puts out on band changes
-    if (pData[data_len-1] == 0xFD && USBH_connected)
-    {
-        ESP_LOG_BUFFER_HEXDUMP("handle_rx-1", pData, data_len, ESP_LOG_INFO);
-        processCatMessages(pData, data_len);
-        #ifdef CIV_SERIAL        
-            if (init_done)
-                const int txBytes = uart_write_bytes(UART_NUM_0, pData, data_len); 
-        #endif
-    }
-    */
     return true;
 }
 
@@ -481,7 +472,7 @@ static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_
 {
     switch (event->type) {
     case CDC_ACM_HOST_ERROR:
-        ESP_LOGE(TAG, "CDC-ACM error has occurred, err_no = %i", event->data.error);
+        ESP_LOGE(TAG, "CDC-ACM error has occurred, err_no = %d", event->data.error);
         break;
     case CDC_ACM_HOST_DEVICE_DISCONNECTED:
         ESP_LOGI(TAG, "Device suddenly disconnected");
@@ -498,9 +489,7 @@ static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_
         ESP_LOGI(TAG, "Serial state notif 0x%04X", event->data.serial_state.val);
         break;
     case CDC_ACM_HOST_NETWORK_CONNECTION:
-    default:
-        ESP_LOGW(TAG, "Unsupported CDC event: %i", event->type);
-        break;
+    default: break;
     }
 }
 
@@ -522,11 +511,8 @@ static void usb_lib_task(void *arg)
             ESP_LOGI(TAG, "USB: All devices freed");
             // Continue handling USB events to allow device reconnection
         }
-        vTaskDelay(pdMS_TO_TICKS(10));
-        //taskYIELD();
     }
 }
-
 static bool set_config_cb(const usb_device_desc_t *dev_desc, uint8_t *bConfigurationValue)
 {
     // If the USB device has more than one configuration, set the second configuration
@@ -539,7 +525,7 @@ static bool set_config_cb(const usb_device_desc_t *dev_desc, uint8_t *bConfigura
     // Return true to enumerate the USB device
     return true;
 }
-} // end namespace esp-usb
+//}
 
 // Ring buffers for Serial RX
 int add(char c) {
@@ -576,10 +562,6 @@ static void usb_loop_task(void *arg)
     while (1) {
         processCatMessages(); //pData, data_len);   
         
-        //if (USBH_connected && !init_done && !radio_address) {
-        //    ESP_LOGI(TAG, "***Calling init_Radio2 from timer loop");
-        //    init_Radio2();   // Ping radio while waiting 
-        //}
         if (get_ext_mode_flag) {
             //ESP_LOGI(TAG, "***Get extended mode info from radio");
             sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
@@ -651,8 +633,6 @@ static void usb_loop_task(void *arg)
             }
 
         #endif // USE_LEDS
-        //taskYIELD();
-        //vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
 
@@ -739,15 +719,6 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
     int8_t msg_len;
     uint8_t req[50] = { START_BYTE, START_BYTE, radio_address, CONTROLLER_ADDRESS };
 
-    const cdc_acm_host_device_config_t dev_config = {
-        .connection_timeout_ms = 1000,
-        .out_buffer_size = 512,
-        .in_buffer_size = 512,
-        .event_cb = handle_event,
-        .data_cb = handle_rx,
-        .user_arg = NULL
-    };
-
     //ESP_LOGI("sendCatRequest", "USBH_connected = %d", USBH_connected);
 
     for (msg_len = 0; msg_len <= cmd_List[cmd_num].cmdData[0]; msg_len++)  // copy in 1 or more command bytes
@@ -784,15 +755,14 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
             sending = 1;
             //ESP_LOGI("Send_CatRequest", "*** Send Cat Request Msg - result = %d  END TX MSG, msg_len = %d", cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 1000), msg_len);
             
-            //if (radio_address != IC9700) {
-                ESP_LOGI("sendCatRequest", "***Send 905 CI-V Msg: ");
+            if (vcp == NULL) {
+                //ESP_LOGI("sendCatRequest", "***Send 905 CI-V Msg via ACM");
                 cdc_acm_host_data_tx_blocking(cdc_dev, (const uint8_t *)req, msg_len+1, 5000);  // send our message out
-            //}
-            //else {
-            //    ESP_LOGI("sendCatRequest", "***Send 9700 CI-V Msg: ");
-            //    auto vcp = std::unique_ptr<CdcAcmDevice>(VCP::open(&dev_config));
-            //    ESP_ERROR_CHECK(vcp->tx_blocking((uint8_t *)req, msg_len+1, 1000));
-            //}
+            }
+            else {
+                //ESP_LOGI("sendCatRequest", "***Send 9700 CI-V Msg vi VCP");
+                ESP_ERROR_CHECK(vcp->tx_blocking((uint8_t *)req, msg_len+1, 1000));
+            }
             vTaskDelay(pdMS_TO_TICKS(10));
             sending = 0;
         } 
@@ -1032,7 +1002,7 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
         int i;
         uint8_t msg_len = 0;
         
-        ESP_LOG_BUFFER_HEXDUMP("processCatMessages", read_buffer, data_len, ESP_LOG_INFO);
+        //ESP_LOG_BUFFER_HEXDUMP("processCatMessages", read_buffer, data_len, ESP_LOG_INFO);
         
         cmd_num = 255;
             match = 0;
@@ -1095,8 +1065,8 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
                         if (cmd_num >= End_of_Cmd_List - 1) 
                         {
                             ESP_LOGI("processCatMessages", "processCatMessages: No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X", cmd_num, read_buffer[4], read_buffer[5]);
+                            ESP_LOG_BUFFER_HEXDUMP("processCatMessages", read_buffer, 32, ESP_LOG_INFO);
                             //sendData2("rx_task", "ProcMsgs No Match found message\n);
-                            //knowncommand = false;
                         } 
                         else 
                         {
@@ -1417,7 +1387,6 @@ uint8_t Get_Radio_address(void) {
                 radio_address = radio_address_received;
                 ESP_LOGI("Get_Radio_address: ", "Radio found at %X", radio_address);
                 retry_Count = 0;
-                //init_Radio2();    
                 init_done = 1;
                 PowerOn_LED(1);  // set LED solid with a good address 
             }
@@ -1562,95 +1531,12 @@ void setup_IO(void)
     configure_led();
 }
 
-int init_Radio1(void)
-{
-    return 0;
-    static int retry = 0;
-
-    //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
-    vTaskDelay(pdMS_TO_TICKS(200));
-
-    ESP_LOGI(TAG, "***Get frequency from radio");
-    sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
-    //sendCatRequest(CIV_C_F25A, 0, 0);  // Get current VFO     
-    vTaskDelay(pdMS_TO_TICKS(200));
-
-    if (!radio_address) {
-        ESP_LOGI(TAG, "***Get CI-V address from radio");
-        retry = Get_Radio_address();
-        vTaskDelay(pdMS_TO_TICKS(300));
-    }
-    
-    vTaskDelay(pdMS_TO_TICKS(1000));  // Time for radio to to be ready for comms after connection
-    ESP_LOGI(TAG, "***Band is %d", band);
-    return retry;
-}
-
-void init_Radio2(void)
-{
-
-    return;
-    if (!init_done && radio_address_received && radio_address != IC9700)
-    {
-        ESP_LOGI(TAG, "***Turn OFF scope data from radio");
-        //sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
-        vTaskDelay(pdMS_TO_TICKS(20));
-
-        // Get started by retrieving frequency, mode, time & location and time offset.
-        ESP_LOGI(TAG, "***Get extended mode info from radio");
-        //sendCatRequest(CIV_C_F26A, 0, 0);  // Get extended info -  mode, filter, and datamode status
-        vTaskDelay(pdMS_TO_TICKS(20));
-        
-        ESP_LOGI(TAG, "***Get UTC Offset from radio");
-        if (radio_address == IC905)                  //905
-            sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
-        else if (radio_address == IC705)             // 705
-            sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        
-        ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
-        sendCatRequest(CIV_C_MY_POSIT_READ, 0, 0);  //CMD_READ_FREQ);
-        vTaskDelay(pdMS_TO_TICKS(20));
-
-        //ESP_LOGI(TAG, "***Get selected VFO freq from radio.");
-        //sendCatRequest(CIV_C_F25A, 0, 0); 
-        //vTaskDelay(pdMS_TO_TICKS(100));
-
-        //ESP_LOGI(TAG, "***Get a BSR from radio.");
-        //read_BSTACK_from_Radio(5, 3);
-        //vTaskDelay(pdMS_TO_TICKS(20));
-        //SetFreq(frequency); 
-        //vTaskDelay(pdMS_TO_TICKS(100));
-
-        ESP_LOGI(TAG, "***Now wait for radio dial and band change messages");
-        vTaskDelay(pdMS_TO_TICKS(10));
-        
-        #ifdef CIV_SERIAL  // pass through PC messages to radi
-            esp_log_level_set("*", ESP_LOG_NONE);
-            init();
-            xTaskCreate(rx_task, "uart_rx_task", 1024 * 2, NULL, configMAX_PRIORITIES - 1, NULL);            
-        #endif
-
-        #ifdef UART_DEBUG
-            init2();
-            //xTaskCreate(tx2_task, "uart_tx2_task", 1024 * 2, NULL, configMAX_PRIORITIES - 2, NULL);
-        #endif
-    }
-    
-    if (radio_address && USBH_connected && band)
-    {
-        init_done = 1;
-        PowerOn_LED(1);
-    }
-}
-
 /**
  * @brief Main application
  *
- * Here we open a USB CDC device and send some data to it
+ * This function shows how you can use Virtual COM Port drivers
  */
-//int app_main(void)   // for .c files
-extern "C" void app_main(void)  // for .cpp files
+extern "C" void app_main(void)
 {
     USBH_connected = false;
 
@@ -1689,28 +1575,24 @@ extern "C" void app_main(void)  // for .cpp files
         #endif
     #endif
 
-    // create a new rtos task for main radio control loop -- not in use yet
-    BaseType_t loop_task_created = xTaskCreate(usb_loop_task, "usb_loop", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
-    assert(loop_task_created == pdTRUE);
-
-    // Setup our USB Host port
     device_disconnected_sem = xSemaphoreCreateBinary();
     assert(device_disconnected_sem);
 
-    //Install USB Host driver. Should only be called once in entire application
+    // Install USB Host driver. Should only be called once in entire application
     ESP_LOGI(TAG, "Installing USB Host");
-    const usb_host_config_t host_config = {
-        .skip_phy_setup = false,
-        .root_port_unpowered = false,
-        .intr_flags = ESP_INTR_FLAG_LEVEL1,
-        //.enum_filter_cb = NULL
-        .enum_filter_cb = set_config_cb
-    };
+    usb_host_config_t host_config = {};
+    host_config.skip_phy_setup = false;
+    host_config.intr_flags = ESP_INTR_FLAG_LEVEL1;
+    host_config.enum_filter_cb = set_config_cb;
     ESP_ERROR_CHECK(usb_host_install(&host_config));
 
     // Create a task that will handle USB library events
-    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
+    BaseType_t task_created = xTaskCreate(usb_lib_task, "usb_lib", 4096, NULL, 10, NULL);
     assert(task_created == pdTRUE);
+
+    // create a new rtos task for main radio control loop -- not in use yet
+    BaseType_t loop_task_created = xTaskCreate(usb_loop_task, "usb_loop", 4096, xTaskGetCurrentTaskHandle(), USB_HOST_PRIORITY, NULL);
+    assert(loop_task_created == pdTRUE);
 
     ESP_LOGI(TAG, "Installing CDC-ACM driver");
     ESP_ERROR_CHECK(cdc_acm_host_install(NULL));
@@ -1718,19 +1600,12 @@ extern "C" void app_main(void)  // for .cpp files
     // Register VCP drivers to VCP service
     VCP::register_driver<FT23x>();
     VCP::register_driver<CP210x>();
-    VCP::register_driver<CH34x>();    
+    VCP::register_driver<CH34x>();
 
-    while (true) 
-    {  
-        const cdc_acm_host_device_config_t dev_config = {
-            .connection_timeout_ms = 1000,
-            .out_buffer_size = 512,
-            .in_buffer_size = 512,
-            .event_cb = esp_usb::handle_event,
-            .data_cb = esp_usb::handle_rx,
-            .user_arg = NULL
-        };
-        
+    // Do everything else in a loop, so we can demonstrate USB device reconnections
+    while (true) {
+
+        ESP_LOGI(TAG, "Setting up line coding");
         cdc_acm_line_coding_t line_coding = {
             .dwDTERate = BAUDRATE,
             .bCharFormat = STOP_BITS,
@@ -1746,8 +1621,8 @@ extern "C" void app_main(void)  // for .cpp files
 
         // You don't need to know the device's VID and PID. Just plug in any device and the VCP service will load correct (already registered) driver for the device
         ESP_LOGI(TAG, "Opening any VCP device...");
-        auto vcp = std::unique_ptr<CdcAcmDevice>(VCP::open(&dev_config));
-        
+        vcp = std::unique_ptr<CdcAcmDevice>(VCP::open(&dev_config));
+
         int j = 0;
         while (vcp == nullptr && j < 4) {
             ESP_LOGI(TAG, "Failed to open VCP device");
@@ -1755,13 +1630,13 @@ extern "C" void app_main(void)  // for .cpp files
             //continue;
             vTaskDelay(10);
         }
-        
+
         if (vcp != nullptr) {
             ESP_ERROR_CHECK(vcp->line_coding_set(&line_coding));
             ESP_LOGI(TAG, "VCP Line Coding is Set");
             //Now the USB-to-UART converter is configured and receiving data.
             //You can use standard CDC-ACM API to interact with it. E.g.
-            ESP_ERROR_CHECK(vcp->set_control_line_state(false, true));
+            ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
         }
         else 
         {
@@ -1788,7 +1663,7 @@ extern "C" void app_main(void)  // for .cpp files
         usb_host_lib_info_t lib_info;
         ESP_ERROR_CHECK(usb_host_lib_info(&lib_info));
         ESP_LOGI(TAG, "USB Host Lib Info: %d  %d", lib_info.num_clients, lib_info.num_devices);
-
+        
         USBH_connected = true;
         PowerOn_LED(2);   // set to flash until we have a good CI-V cconnection
         
@@ -1799,42 +1674,15 @@ extern "C" void app_main(void)  // for .cpp files
         //  disconnect events can take hold.
         //
         //  *******************************************************************************
-        
-        /*
-        vTaskDelay(pdMS_TO_TICKS(700));  // Time for radio to to be ready for comms after connection
-        // Have observed a mode message will be received on connection so awit for that to finish.
-
-        ESP_LOGI(TAG, "***Starting CI-V communications");
-        init_Radio1();
-    
-        // usb_loop_task() is where our program runs within now.  
-        // handler_rx takes care of received events
-        // Do not Transmit to USB (such as call send_CAT_Request()) from the handler_rx, they will overlap and cause timeouts.
-        // Incoming CIV data appears in handler_rx which in turn calls processmessages() and CIV_Action(). 
-        // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
-        // or read frequency() calling get ext mode, set a flag and let usb_loop_task() handle it.
-        
-        // We are done.  The tasks are running things now. Wait for device disconnection and start over
-        
-        // program waits here while tasks run handling events
-        xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
-    }
-}
-*/
-        // We can now send to CI-V
-        vTaskDelay(pdMS_TO_TICKS(200));  // Time for radio to to be ready for comms after connection
-        // Have observed a mode message will be received on connection so awit for that to finish.
-
-
         while ((radio_address == 0 || frequency == 0 ) && !init_done) 
         {
             ESP_LOGI(TAG, "***Starting CI-V communications");
             //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
             vTaskDelay(pdMS_TO_TICKS(200));
 
-            //ESP_LOGI(TAG, "***Turn OFF scope data from radio");
-            //sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
-            //vTaskDelay(pdMS_TO_TICKS(100));
+            ESP_LOGI(TAG, "***Turn OFF scope data from radio");
+            sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
+            vTaskDelay(pdMS_TO_TICKS(100));
 
             ESP_LOGI(TAG, "***Get frequency from radio");
             sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
@@ -1900,13 +1748,12 @@ extern "C" void app_main(void)  // for .cpp files
         // usb_loop_task() is where our program runs within now.  
         // handle_rx takes care of received events
         // Do not Transmit to USB (such as call send_CAT_Request()) from the handle_rx, they will overlap and cause timeouts.
-        // Incoming CIV data appears in handler_rx which in turn calls processmessages() and CIV_Action(). 
+        // Incoming CIV data appears in handle_rx which in turn calls processmessages() and CIV_Action(). 
         // If anything needs to be TX back to the radio by those processes like mode calling get ext mode, 
         // or read frequency() calling get ext mode, set a flag and let usb_loop_task() handle it.
 
-        // We are done.  The tasks are running things now. Wait for device disconnection and start over
-
-        // program waits here while tasks run handling events
+        // We are done. Wait for device disconnection and start over
+        ESP_LOGI(TAG, "Done. You can reconnect the VCP device to run again.");
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }
 }

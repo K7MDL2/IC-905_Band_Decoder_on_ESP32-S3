@@ -125,15 +125,17 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_RADIO_ON,		    {2,0x18,0x01}},	          	  // Turn on the radio
     {CIV_C_SCOPE_ON,        {3,0x27,0x11,0x01}},          // send/read Scope wave data output ON
     {CIV_C_SCOPE_OFF,       {3,0x27,0x11,0x00}},          // send/read Scope wave data output OFF
-    {CIV_C_SCOPE_ALL,       {1,0x27}}                     // send/read Scope catch all to avoid no match found error outputs
+    {CIV_C_SCOPE_ALL,       {1,0x27}},                    // send/read Scope catch all to avoid no match found error outputs
+    {CIV_R_NO_GOOD,         {2,0xFA,0xFD}},                    // Message received from radio was no good
+    {CIV_R_GOOD,            {2,0xFB,0xFD}}                     // Message received from radio was good
 };
 
 //
-// Icom mode number, model Label, range of filt choices allowed (1, 2, or 3), and data mode allowed table (set for data capable modes only)
-// per mode, can use filtX and datamode clumns to determine allowable value to write to the radio, or to allow for display.
-// not all filters are avaiable for all odes.  FOr  example DD and WFM are FILT1 only. 
+// Icom mode number, model Label, range of filter choices allowed (1, 2, or 3), and data mode allowed table (set for data capable modes only)
+// per mode, can use filtX and datamode columns to determine allowable value to write to the radio, or to allow for display.
+// not all filters are available for all modes.  For example, DD and WFM are FILT1 only. 
 // To use filt column, test desired or received value against highest value in the field.  
-// For datamode, simple check for 1 or 0. If o hen data mode must be off.  If 1, data mode must be on.  
+// For datamode, simply check for 1 or 0. If 0 then data mode must be off.  If 1, data mode must be on.  
 // in a table search, that would change the displayed mode label from USB to USB-D for example, they are both the same base mode, 0x01.
 // 
 
@@ -945,6 +947,10 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         }
         break;
     }
+
+    case CIV_R_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Accepted by Radio"); break;
+
+    case CIV_R_NO_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Rejected by Radio"); break;
 
     case CIV_C_SCOPE_OFF:
     case CIV_C_SCOPE_ON:
