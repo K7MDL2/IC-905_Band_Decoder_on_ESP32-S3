@@ -1013,9 +1013,8 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
                 ESP_LOGI("processCatMessages", "<++ Rx Raw Msg: ");
                 for (uint8_t k = 0; k < msg_len; k++) {
                     ESP_LOG_BUFFER_HEXDUMP("processCatMessages", &read_buffer[k], 1, ESP_LOG_INFO);
-                    //ESP_LOGI("processCatMessages", ",");
                 }
-                ESP_LOGI("processCatMessages", " msg_len = %d END", msg_len);
+                ESP_LOGI("processCatMessages:", " msg_len = %d END", msg_len);
             #endif
             if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE) {
                 radio_address_received = read_buffer[3];
@@ -1025,52 +1024,50 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
                 if (read_buffer[3] != 0) {
                     //if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
                     if (1) {
-                        for (cmd_num = CIV_C_F_SEND; cmd_num < End_of_Cmd_List; cmd_num++)  // loop through the command list structure looking for a pattern match
+                        for (cmd_num = 0; cmd_num < End_of_Cmd_List; cmd_num++)  // loop through the command list structure looking for a pattern match
                         {
-                            //ESP_LOGI("processCatMessages", "processCatMessageslist: list index = "); DPRINTLN(cmd_num);
-                            for (i = 1; i <= cmd_List[cmd_num].cmdData[0]; i++)  // start at the highest and search down. Break out if no match. Make it to the bottom and you have a match
+                            //ESP_LOGI("processCatMessages:", "list index = %d", cmd_num);
+                            for (i = 1; i <= cmd_List[cmd_num].cmdData[0]; i++)  // Break out if no match. Make it to the bottom and you have a match
                             {
-                                //ESP_LOGI("processCatMessages", "processCatMessages: byte index = "); DPRINTLN(i);
-                                //ESP_LOGI(TAG,"processCatMessages: cmd_num=%d from radio, current byte from radio = %X  next byte=%X, on remote length=%d and cmd=%X",cmd_num, read_buffer[3+i], read_buffer[3+i+1], cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[1]);
-                                if (cmd_List[cmd_num].cmdData[i] != read_buffer[3 + i]) {
-                                //ESP_LOGI("processCatMessages", "processCatMessages: Skip this one - Matched 1 element: look at next field, if any left. CMD Body Length = ");
-                                //ESP_LOGI("processCatMessages", cmd_List[cmd_num].cmdData[0]); DPRINTF(" CMD  = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[i], HEX);DPRINTF(" next RX byte = "); DPRINTLN(read_buffer[3+i+1],HEX);
-                                match = 0;
-                                break;
+                                //ESP_LOGI("processCatMessages:", "byte index = %d  cmd_num=%d from radio, current byte from radio = 0x%X  next byte=0x%X, on remote length=%d and cmd=%d", i, cmd_num, read_buffer[3+i], read_buffer[3+i+1], cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[1]);
+                                if (cmd_List[cmd_num].cmdData[i] != read_buffer[3 + i]) {  //&& cmd_List[cmd_num].cmdData[0] > 1 ) {
+                                    //ESP_LOGI("processCatMessages:", "Skip this one - Matched 1 element: look at next field, if any left. CMD Body Length = %d  CMD  = %X  next RX byte = %X", cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[i], read_buffer[3+i+1]);
+                                    match = 0;
+                                    break;
                                 }
                                 match++;
-                                //ESP_LOGI("processCatMessages", "processCatMessages: Possible Match: Len = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); ESP_LOGI(TAG,(read_buffer[4],HEX);
-                                //ESP_LOGI("processCatMessages", " CMD2  = "); ESP_LOGI(TAG,(read_buffer[5],HEX); DPRINTF(" Data1/Term  = "); DPRINTLN(read_buffer[6],HEX);
+                                //ESP_LOGI("processCatMessages:", "Possible Match: Len = %d  CMD1 = %X  CMD2  = %X  Data1/Term  = %X", cmd_List[cmd_num].cmdData[0], read_buffer[4], read_buffer[5], read_buffer[6]); 
                             }
 
                             //if (read_buffer[3+i] == STOP_BYTE)  // if the next byte is not a stop byte then it is thge next cmd byte or maybe a data byte, depends on cmd length
 
                             if (match && (match == cmd_List[cmd_num].cmdData[0])) 
                             {
-                                //ESP_LOGI("processCatMessages", "processCatMessages:    FOUND MATCH: Len = "); ESP_LOGI(TAG,(cmd_List[cmd_num].cmdData[0],DEC); DPRINTF("  CMD1 = "); ESP_LOGI(TAG,(read_buffer[4],HEX);
-                                //ESP_LOGI("processCatMessages", " CMD2  = "); ESP_LOGI(TAG,(read_buffer[5],HEX);  DPRINTF(" Data1/Term  = "); ESP_LOGI(TAG,(read_buffer[6],HEX); DPRINTF("  Message Length = "); DPRINTLN(msg_len);
+                                //ESP_LOGI("processCatMessages:", "FOUND MATCH: Len = %d  cmd = %d  CMD1 byte = %X  CMD2 byte = %X  Data1/Term Byte = %X   Message Length = %d", cmd_List[cmd_num].cmdData[0], cmd_num, read_buffer[4], read_buffer[5], read_buffer[6], msg_len);
                                 break;
                             }
                         }
 
                         data_start_idx = 4 + cmd_List[cmd_num].cmdData[0];
                         data_len = msg_len - data_start_idx - 1;
+                        if (data_len < 0)
+                            data_len = 0;
 
                         //uint8_t k;
                         //for (k = 0; k < msg_len; k++)
                         //    CIV_data[k] = read_buffer[data_start_idx + k];
 
-                        //ESP_LOGI("processCatMessages", "cmd = %X  data_start_idx = %d  data_len = %d", cmd_List[cmd_num].cmdData[1], data_start_idx, data_len);
+                        //ESP_LOGI("processCatMessages:", "cmd = %d  cmd len = %X  CMD1 Byte = %X  data_start_idx = %d  data_len = %d", cmd_num, cmd_List[cmd_num].cmdData[0], cmd_List[cmd_num].cmdData[1], data_start_idx, data_len);
 
-                        if (cmd_num >= End_of_Cmd_List - 1) 
+                        if (cmd_num >= End_of_Cmd_List) 
                         {
-                            ESP_LOGI("processCatMessages", "processCatMessages: No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X", cmd_num, read_buffer[4], read_buffer[5]);
-                            ESP_LOG_BUFFER_HEXDUMP("processCatMessages", read_buffer, 32, ESP_LOG_INFO);
+                            ESP_LOGI("processCatMessages:", "No message match found - cmd_num = %d  read_buffer[4 & 5] = %X %X", cmd_num, read_buffer[4], read_buffer[5]);
+                            ESP_LOG_BUFFER_HEXDUMP("processCatMessages:", read_buffer, 32, ESP_LOG_INFO);
                             //sendData2("rx_task", "ProcMsgs No Match found message\n);
                         } 
                         else 
                         {
-                            //ESP_LOGI("processCatMessages", "Call CIV_Action");
+                            //ESP_LOGI("processCatMessages:", "Call CIV_Action CMD = %d", cmd_num);
                             CIV_Action(cmd_num, data_start_idx, data_len, msg_len, read_buffer);
                         }
                     }  // is controller address
@@ -1707,6 +1704,8 @@ extern "C" void app_main(void)
                     sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
                 else if (radio_address == IC705)             // 705
                     sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
+                else if (radio_address == IC9700)             // 705
+                    sendCatRequest(CIV_C_UTC_READ_9700, 0, 0);  //CMD_READ_FREQ);
                 vTaskDelay(pdMS_TO_TICKS(20));
                 
                 ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");
