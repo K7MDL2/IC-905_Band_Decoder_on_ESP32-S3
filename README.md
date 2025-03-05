@@ -14,6 +14,8 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/ESP3--S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
+4 March 2025 - If you enable USB SEND (A) DTR you can use the PTT in jack with a footswitch to key the radio via USB.  This sets up the opportunitiy to add sequencing delays controlling the RF flow.
+
 3 March 2025 - This works with the IC-9700.  It required USB VCP device drivers to be registered and used in the code.  I auto detect the IC-9700 which uses the CP2104 USB to UART bridge chip and use VCP methods to send commands to the radio.  Other radios will use normal cdc_acm_host methods.  See ths Wiki Page for required CI-V radio settings:  https://github.com/K7MDL2/IC-905_Band_Decoder_on_ESP32-S3/wiki/IC%E2%80%909700-Configuration
 
 In a parallel project I now have a ethernet band decoder for the 905 only. https://github.com/K7MDL2/IC905_Ethernet_Decoder  In combination with a managed switch (or switches) and a POE inserter I can sniff the packets between the control head and RF Unit and extract frequency, PTT events, and more.  It is running on a RPi4B with support for 6 band and 6 PTT lines output on GPIO pins.  It can connect to this projectes Remote BCD Band Decoder board or any other IO like opto or relay boards.
