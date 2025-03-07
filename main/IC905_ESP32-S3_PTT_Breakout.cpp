@@ -1379,7 +1379,7 @@ uint8_t Get_Radio_address(void) {
     if (USBH_connected)
     {
         if (radio_address == 0x00 || radio_address == 0xFF || radio_address == 0xE0) {
-            if (radio_address_received == 0) {
+            if (radio_address_received == 0 || radio_address_received == 0xE0) {
                 ESP_LOGI("Get_Radio_address:", "Radio not found - retry count = %X", retry_Count);
                 vTaskDelay(100);
                 retry_Count++;
@@ -1394,11 +1394,14 @@ uint8_t Get_Radio_address(void) {
                 PowerOn_LED(1);  // set LED solid with a good address 
             }
         }
+    
         if (radio_address == IC705) {
             // copy the Bands_705 structure content to the Bands structure
             memcpy(bands, bands_705, sizeof(bands));
         }
-        else { // for all other radios (at least the 905 and 9700)
+
+        if (radio_address == IC905 || radio_address == IC9700) {
+                // for all other radios (at least the 905 and 9700)
             // copy the Bands_905 structure content to the Bands structure
             memcpy(bands, bands_905, sizeof(bands));
         }
@@ -1758,7 +1761,7 @@ extern "C" void app_main(void)
         // or read frequency() calling get ext mode, set a flag and let usb_loop_task() handle it.
 
         // We are done. Wait for device disconnection and start over
-        ESP_LOGI(TAG, "Done. You can reconnect the VCP device to run again.");
+        ESP_LOGI(TAG, "Done. You can reconnect the USB device to run again.");
         xSemaphoreTake(device_disconnected_sem, portMAX_DELAY);
     }
 }
