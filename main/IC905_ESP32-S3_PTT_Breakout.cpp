@@ -293,10 +293,16 @@ static void gpio_PTT_Input(void* arg)
             //ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
             PTT_Output(band, PTT);
             #ifdef USB_KEYING
-                if (PTT)
-                    ESP_ERROR_CHECK(vcp->set_control_line_state(true, false));
+                if (vcp != nullptr)
+                    if (PTT)
+                        ESP_ERROR_CHECK(vcp->set_control_line_state(true, false));
+                    else
+                        ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
                 else
-                    ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
+                    if (PTT)
+                        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, true, false));
+                    else
+                        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
             #endif
             display_PTT(PTT, false);
             
