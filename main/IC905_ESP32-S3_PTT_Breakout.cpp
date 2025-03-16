@@ -137,7 +137,7 @@ uint8_t band = BAND_2M;
     uint16_t background_color = TFT_BLACK;
 #endif
 bool PTT = false;
-bool prev_PTT = true;
+bool prev_PTT = false;
 extern char Grid_Square[];
 extern struct Modes_List modeList[];
 //extern char FilStr;
@@ -159,7 +159,7 @@ uint8_t readLine(void);
 void processCatMessages(void);
 void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t Data_len);  // first byte in Data is length
 void printFrequency(void);
-void read_Frequency(uint64_t freq, uint8_t data_len);
+void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint64_t CIV_selected_vfo_rx, bool CIV_PTT);  // 0 is vfoa, 1 is vfo b
 uint8_t getBand(uint64_t _freq);
 void refresh_display(void);
 void draw_new_screen(void);
@@ -196,6 +196,11 @@ typedef uint8_t ring_pos_t;
 volatile ring_pos_t ring_head;
 volatile ring_pos_t ring_tail;
 volatile char ring_data[RING_SIZE];
+extern bool main_TX;
+extern bool active_band;
+extern uint64_t CIV_selected_vfo;
+extern uint64_t CIV_selected_vfo_rx;
+extern uint64_t CIV_unselected_vfo;
 
 static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg);
 static void handle_event(const cdc_acm_host_dev_event_data_t *event, void *user_ctx);
@@ -291,38 +296,54 @@ static void gpio_PTT_Input(void* arg)
         if(xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY)) {
             PTT = (uint8_t) gpio_get_level((gpio_num_t) io_num);  // Invert for buffer
             //ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
-            PTT_Output(band, PTT);
-            #ifdef USB_KEYING
-                if (vcp != nullptr)
-                    if (PTT)
-                        ESP_ERROR_CHECK(vcp->set_control_line_state(true, false));
-                    else
-                        ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
-                else
-                    if (PTT)
-                        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, true, false));
-                    else
-                        ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
-            #endif
-            display_PTT(PTT, false);
-            
-            #ifdef USE_LEDS  // toggle PTT LED
-                if (PTT) {
-                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
-                    //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
-                    flash_PTT_LED(1, (ledc_channel_t) band);
-                } else {
-                    ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
-                    //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
-                    flash_PTT_LED(0, (ledc_channel_t) band);
+
+            if (init_done) {
+                //ESP_LOGI("PTT","CIV selected_vfo %llu  unselected_vfo %llu  selected_vfo_rx %llu ", CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx);
+                
+                // Trigger VFO swaps if needed and sequence PTT before and after any band changes
+                if (PTT) {    
+                    read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                    PTT_Output(band, PTT);
                 }
-                // Update duty to apply the new value
-                ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
-            #else
-                // 100% ON or OFF.  This is too bright so use PWM method preferred
-                gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
-                refresh_display();
-            #endif
+                else {
+                    PTT_Output(band, PTT); 
+                    vTaskDelay(pdMS_TO_TICKS(10)); 
+                    read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);
+                }
+                
+                #ifdef USB_KEYING
+                    if (vcp != nullptr)
+                        if (PTT)
+                            ESP_ERROR_CHECK(vcp->set_control_line_state(true, false));
+                        else
+                            ESP_ERROR_CHECK(vcp->set_control_line_state(false, false));
+                    else
+                        if (PTT)
+                            ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, true, false));
+                        else
+                            ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
+                #endif
+                display_PTT(PTT, false);
+                
+                #ifdef USE_LEDS  // toggle PTT LED
+                    if (PTT) {
+                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
+                        //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
+                        flash_PTT_LED(1, (ledc_channel_t) band);
+                    } else {
+                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
+                        //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
+                        flash_PTT_LED(0, (ledc_channel_t) band);
+                    }
+                    // Update duty to apply the new value
+                    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
+                #else
+                    // 100% ON or OFF.  This is too bright so use PWM method preferred
+                    gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
+                    refresh_display();
+                #endif
+            }
         }
     }
 }
@@ -571,6 +592,8 @@ int remove(void) {
 static void usb_loop_task(void *arg)
 {
     static uint32_t last_level = 0;  // remember the last LED brightness level
+    static uint64_t time_last_disp_1SEC = esp_timer_get_time();
+
     while (1) {
         processCatMessages(); //pData, data_len);   
         
@@ -623,7 +646,29 @@ static void usb_loop_task(void *arg)
             }
             
             if (USBH_connected && init_done) {
-                PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
+                // 1 second timer
+                if (esp_timer_get_time() >= time_last_disp_1SEC + POLL_RADIO_1SEC*1000) {
+                    PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
+                    if (radio_address == IC9700 && !PTT) {    
+                        sendCatRequest(CIV_R_MAINSUBBAND, 0, 0); 
+                        processCatMessages(); //pData, data_len);   
+                    }
+                    if (!PTT) {
+                        sendCatRequest(CIV_C_F25A, 0, 0); 
+                        vTaskDelay(pdMS_TO_TICKS(10));                    
+                        processCatMessages(); //pData, data_len);  
+                        sendCatRequest(CIV_C_F25B, 0, 0); 
+                        vTaskDelay(pdMS_TO_TICKS(10));                    
+                        processCatMessages(); //pData, data_len);   
+                        sendCatRequest(CIV_C_F_READ, 0, 0); 
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        processCatMessages(); //pData, data_len);   
+                        sendCatRequest(CIV_C_SPLIT_READ, 0, 0); 
+                        vTaskDelay(pdMS_TO_TICKS(10));
+                        processCatMessages(); //pData, data_len);   
+                    }
+                    time_last_disp_1SEC = esp_timer_get_time();
+                }
             }
             else if (USBH_connected) {
                 PowerOn_LED(2);  // Flash Power On LED if no radio connection but have a USB connection to something
@@ -797,18 +842,45 @@ void sendCatRequest(const uint8_t cmd_num, const uint8_t Data[], const uint8_t D
 //    - On exit from this function, frequency is either updated (non-XVtr bands) or Xvtr_offset applied, if any.
 //
 // ----------------------------------------
-void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed frequency, before the radio input, which may have offset applied
+void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint64_t CIV_selected_vfo_rx, bool CIV_PTT) {  // 0 is vfoa, 1 is vfo b
+    // This is the displayed frequency, before the radio input, which may have offset applied
     if (frequency > 0) {                   // store frequency per band before it maybe changes bands.  Required to change IF and restore direct after use as an IF.
-        ESP_LOGI(TAG,"read_Frequency: Last Freq %-13llu", frequency);
+        //ESP_LOGI(TAG,"read_Frequency: Last Freq %-13llu", frequency);
         if (!update_radio_settings_flag) {   // wait until any XVTR transition complete
             bands[band].VFO_last = frequency;  // store Xvtr or non-Xvtr band displayed frequency per band before it changes.
             prev_band = band;                  // store associated band index
         }
     }  // if an Xvtr band, subtract the offset to get radio (IF) frequency
-
-    // Could do more validation here. Freq Calculation moved to CIV.cpp
-    frequency = freq;
     
+    //ESP_LOGI("CIV VFO", "Selected %llu  Unselected %llu  Sub RX %llu", CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx);   //#  0 is vfoa, 1 is vfo b
+    
+    if (!CIV_PTT) {
+        //ESP_LOGI("PTT OFF", "active band %d  main_TX %d  split %d", active_band, main_TX, bands[band].split);
+        if (radio_address == IC9700 && active_band && main_TX)
+            frequency = CIV_selected_vfo;
+        if (radio_address == IC9700 && active_band && !main_TX)
+            frequency = CIV_selected_vfo_rx;
+        //ESP_LOGI("FREQ","VFO 0 %llu", frequency);
+    } 
+    
+    if (CIV_PTT != prev_PTT) { // PTT  split
+        //ESP_LOGI("PTT Start", "active band %d  main_TX %d  split %d", active_band, main_TX, bands[band].split);
+        if ((radio_address == IC9700 && active_band && !main_TX) || bands[band].split == 0) {
+            frequency = CIV_selected_vfo;
+            //ESP_LOGI("FREQ","VFO 1 %llu", frequency);
+        } else {  // split is on, no SubRX
+            if (bands[band].split == 1 || (radio_address == IC9700 && active_band && !main_TX)) {  // 17 on 705, 18 on 9700
+                frequency = CIV_unselected_vfo;   // cross band split
+                //ESP_LOGI("FREQ","VFO 2 %llu", frequency);
+            }
+            else {  // main_TX == 1
+                frequency = CIV_selected_vfo_rx;   // in Duplex mode
+                //ESP_LOGI("FREQ","VFO 3 %llu", frequency);
+            }
+        }
+        prev_PTT = CIV_PTT;
+    }
+
     band = getBand(frequency);
     if (band != prev_band) {
         //ESP_LOGI("read_Frequency", "***Get extended mode data from radio after band change - Setting flag");
@@ -835,15 +907,17 @@ void read_Frequency(uint64_t freq, uint8_t data_len) {  // This is the displayed
         #else
             draw_new_screen();
         #endif
-        
+
+        ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", frequency, band, radio_address);
         // Use the band to operate our band enable outputs for the 6 905 bands.
         Band_Decode_Output(band);
-
         prev_band = band;
     }
-
-    ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", frequency, band, radio_address);
-    //ESP_LOGI(TAG,"read_Frequency: Freq %-13llu  band =  %d  datalen = %d   btConnected %d   USBH_connected %d  BLE_connected %d  radio_address %X", frequency, band, data_len, btConnected, USBH_connected, BLE_connected, radio_address);
+    uint64_t display_freq = CIV_selected_vfo_rx;
+    if (display_freq != prev_frequency) {
+        ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", display_freq, band, radio_address);
+        prev_frequency = display_freq;
+    }
     // On exit from this function we have a new displayed frequency that has XVTR_Offset added, if any.
 }
 
@@ -1028,12 +1102,17 @@ void GPIO_PTT_Out(uint8_t pattern, bool _PTT_state)
                 }
                 ESP_LOGI("processCatMessages:", " msg_len = %d END", msg_len);
             #endif
-            if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE) {
+            // Trim off excess starting bytes FE if we see 3 of them 
+            if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE && read_buffer[2] == START_BYTE) {
+                memcpy(read_buffer, &read_buffer[1], sizeof(read_buffer-1) );
+                //ESP_LOG_BUFFER_HEXDUMP("processCatMessages", read_buffer, data_len, ESP_LOG_INFO);
+            }
+            if (read_buffer[0] == START_BYTE && read_buffer[1] == START_BYTE && read_buffer[2] != START_BYTE) {        
                 radio_address_received = read_buffer[3];
                 if (radio_address_received != 0 && radio_address == 0)
                     Get_Radio_address();
                 //if (read_buffer[3] == radio_address) {
-                if (read_buffer[3] != 0) {
+                if (read_buffer[3] != 0 && read_buffer[3] != CONTROLLER_ADDRESS) {
                     //if (read_buffer[2] == CONTROLLER_ADDRESS || read_buffer[2] == BROADCAST_ADDRESS) {
                     if (1) {
                         for (cmd_num = 0; cmd_num < End_of_Cmd_List; cmd_num++)  // loop through the command list structure looking for a pattern match
@@ -1427,7 +1506,7 @@ void blink_led(uint8_t s_led_state, char color)
         case 'W':   led_strip_set_pixel(led_strip, 0, 16, 16, 16); break;  // read_freq on band change (white)
         case 'R':   led_strip_set_pixel(led_strip, 0, 255, 0, 0); break;   // 0x25 VFO freq -> readfreq  (red-white)
         case 'G':   led_strip_set_pixel(led_strip, 0, 0, 255, 0); break;   // processmsg -> CIV -> read_freq (Green-Red-White)
-        case 'P':   led_strip_set_pixel(led_strip, 200, 0, 0, 200); break; // bandstack -> read-freq  (purple-white)
+        case 'P':   led_strip_set_pixel(led_strip, 0, 0, 0, 200); break; // bandstack -> read-freq  (purple-white)
         case 'B':   led_strip_set_pixel(led_strip, 0, 0, 0, 255); break;   // RX data fom PC - processMsg -> Civ -> read_freq (Blue-Green-red-White)
     }
         /* Refresh the strip to send data */
@@ -1462,6 +1541,7 @@ static void configure_led(void)
 
 void setup_IO(void)
 {   
+    main_TX = MAIN_TX;
     // Set up an interrupt on our PTT input pin and set output pins
     //zero-initialize the config structure.
     gpio_config_t io_conf = {};
@@ -1686,27 +1766,35 @@ extern "C" void app_main(void)
         //  disconnect events can take hold.
         //
         //  *******************************************************************************
-        while ((radio_address == 0 || frequency == 0 ) && !init_done) 
-        {
+        //while ((radio_address == 0 || frequency == 0 ) && !init_done) 
+        if (!init_done) {
             ESP_LOGI(TAG, "***Starting CI-V communications");
             //SetFreq(145500000);  // Used for testing when there is no screen, can see radio respond to something.
             vTaskDelay(pdMS_TO_TICKS(200));
+            processCatMessages();
+
+            ESP_LOGI(TAG, "***Get Radio CI-V Address (TRX_ID)");
+            sendCatRequest(CIV_C_TRX_ID, 0, 0);  // Turn Off scope daa in case it is still on
+            vTaskDelay(pdMS_TO_TICKS(100));
+            processCatMessages();
 
             ESP_LOGI(TAG, "***Turn OFF scope data from radio");
             sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
             vTaskDelay(pdMS_TO_TICKS(100));
+            processCatMessages();
 
-            ESP_LOGI(TAG, "***Get frequency from radio");
-            sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
-            vTaskDelay(pdMS_TO_TICKS(100));
-
-            ESP_LOGI(TAG, "***Get CI-V address from radio");
+            //ESP_LOGI(TAG, "***Get CI-V address from radio");
             if (Get_Radio_address() > 4) {
                 PowerOn_LED(2);
                 break;
             }
             vTaskDelay(pdMS_TO_TICKS(100));  // Time for radio to to beready for comms after connection
             
+            ESP_LOGI(TAG, "***Get frequency from radio");
+            sendCatRequest(CIV_C_F_READ, 0, 0);  // Get current VFO     
+            vTaskDelay(pdMS_TO_TICKS(100));
+            processCatMessages();
+
             if (radio_address_received)
             {
                 // Get started by retrieving frequency, mode, time & location and time offset.
@@ -1719,8 +1807,20 @@ extern "C" void app_main(void)
                     sendCatRequest(CIV_C_UTC_READ_905, 0, 0);  //CMD_READ_FREQ);
                 else if (radio_address == IC705)             // 705
                     sendCatRequest(CIV_C_UTC_READ_705, 0, 0);  //CMD_READ_FREQ);
-                else if (radio_address == IC9700)             // 705
+                else if (radio_address == IC9700) {             // 705
                     sendCatRequest(CIV_C_UTC_READ_9700, 0, 0);  //CMD_READ_FREQ);
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                    sendCatRequest(CIV_R_MAINSUBBAND, 0, 0);   //selected VFO freq
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                    if (main_TX) {
+                        sendCatRequest(CIV_C_F25A, 0, 0);
+                        vTaskDelay(pdMS_TO_TICKS(50));
+                        sendCatRequest(CIV_C_F25B, 0, 0);
+                    }
+                    else
+                        sendCatRequest(CIV_C_F_READ, 0, 0);
+                    vTaskDelay(pdMS_TO_TICKS(50));
+                }
                 vTaskDelay(pdMS_TO_TICKS(20));
                 
                 ESP_LOGI(TAG, "***Get time, date and position from radio.  We will then calculate grid square");

@@ -38,6 +38,8 @@
 
 #define POLL_RADIO_UTC    998 // poll radio for time and location
 
+#define POLL_RADIO_1SEC   1000 // 1 second task timer.  FOr IC-9700, poll radio for status of Sub RX
+
 #define POLL_RADIO_MODE  6101 // poll radio for extended mode, filter and datamode
 
 #define USE_LEDS  // operate band/PTT status LEDS (likely instead of using a OLED).
@@ -55,6 +57,8 @@
 //#define REMOTE_BOARD          // Use BCD output patterns instead of 1 of 6 to control the Remote BCD Band Decoder PCB.
 
 #define USB_KEYING              // Use external keying. When the PTT in jack is active, send DTR over USB to key the radio. Used for sequencing.
+
+#define MAIN_TX 1              // IC-9700 Only. If 0, switch outputs between active Sub RX and Main TX frequency.  If 1 only use the Main band frequency for outputs.
 
 // --------------------------------------------------------------------------------------------------------
 //   End of user selected values

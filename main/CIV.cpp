@@ -22,11 +22,16 @@
 static const char *TAG = "CIV";
 
 // CIV related stuff
+uint64_t CIV_selected_vfo = 0;
+uint64_t CIV_selected_vfo_rx = 0;
+uint64_t CIV_unselected_vfo = 0;
+bool active_band = false;
+bool main_TX = MAIN_TX;
 //void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8_t data_len, const uint8_t msg_len, const uint8_t *rd_buffer);
 extern struct Bands bands[]; 
 char Grid_Square[GRIDSQUARE_LEN];   /* 10 char grid square max to be used - store d here as last known good Grid Flash icon if no valid GPS input*/
 extern uint8_t UTC;    // 0 local time, 1 UTC time
-extern void read_Frequency(uint64_t freq, uint8_t data_len);
+extern void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint64_t CIV_selected_vfo_rx, bool CIV_PTT);  // 0 is vfoa, 1 is vfo b
 extern bool PTT;
 static bool TX_last = 0;
 int hr_off;  // time offsets to apply to UTC time
@@ -128,7 +133,10 @@ struct cmdList cmd_List[End_of_Cmd_List] = {
     {CIV_C_SCOPE_OFF,       {3,0x27,0x11,0x00}},          // send/read Scope wave data output OFF
     {CIV_C_SCOPE_ALL,       {1,0x27}},                    // send/read Scope catch all to avoid no match found error outputs
     {CIV_R_NO_GOOD,         {1,0xFA}},                    // Message received from radio was no good
-    {CIV_R_GOOD,            {1,0xFB}}                     // Message received from radio was good
+    {CIV_R_GOOD,            {1,0xFB}},                    // Message received from radio was good
+    {CIV_R_MAINSUBBAND,     {2,0x07,0xD2}},              // IC-9700 Main band Active query
+    {CIV_R_MAIN_BANDVFO,    {3,0x07,0xD2,0x00}},         // Set/Read IC-9700 Main band VFO selection
+    {CIV_R_SUB_BANDVFO,     {3,0x07,0xD2,0x01}}          // Set/Read IC-9700 Sub band VFO selection
 };
 
 //
@@ -477,15 +485,30 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         
         if ((data_len == 5 || (radio_address == IC905 && data_len == 6)) && (rd_buffer[4] == 3 || rd_buffer[4] == 0 || rd_buffer[4] == 5 || rd_buffer[4] == 0x25)) {
 
-          mul = 1;
-          f = 0;
-          for (uint8_t i = data_start_idx; i < data_start_idx + data_len; i++) {
-              if (rd_buffer[i] == 0xFD) continue;  //spike
-              f += (rd_buffer[i] & 0x0F) * mul; mul *= 10;  // * decMulti[i * 2 + 1];
-              f += (rd_buffer[i] >> 4) * mul; mul *= 10;  //  * decMulti[i * 2];
-          }
-          //ESP_LOGI("CIV_Action", "Freq %-13llu\n", f);
-          read_Frequency(f, data_len);
+            mul = 1;
+            f = 0;
+            for (uint8_t i = data_start_idx; i < data_start_idx + data_len; i++) {
+                if (rd_buffer[i] == 0xFD) continue;  //spike
+                f += (rd_buffer[i] & 0x0F) * mul; mul *= 10;  // * decMulti[i * 2 + 1];
+                f += (rd_buffer[i] >> 4) * mul; mul *= 10;  //  * decMulti[i * 2];
+            }
+            //ESP_LOGI("CIV_Action", "Freq %-13llu\n", f);
+
+            // Handle IC9700 Sub RX
+            if (rd_buffer[4] == 0x25 and rd_buffer[5] == 1) {
+                    CIV_unselected_vfo = f;
+                    //ESP_LOGI("CIV","VFOB x25 Main CIV_unselected_vfo %llu", CIV_unselected_vfo);
+            }
+            else if (rd_buffer[4] == 0x25 and rd_buffer[5] == 0) {
+                    CIV_selected_vfo = f;
+                    //ESP_LOGI("CIV","VFOA x25 Main CIV_selected_vfo %llu", CIV_selected_vfo);
+            }
+            else {
+                CIV_selected_vfo_rx = f;
+                //ESP_LOGI("CIV","VFOA Sub CIV_selected_vfo_rx %llu", CIV_selected_vfo_rx);
+            }
+            //ESP_LOGI("CIV VFO", "Selected %llu  Unselected %llu  Sub RX %llu", CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);   //#  0 is vfoa, 1 is vfo b
+            read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);   //#  0 is vfoa, 1 is vfo b
         }
         break;
     }
@@ -748,28 +771,15 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
     }
     
     case CIV_C_SPLIT_READ: {
-        uint8_t _val = rd_buffer[data_start_idx];
-
-        //ESP_LOGI(TAG, "CIV_Action:  CI-V Returned Preamp status: "); ESP_LOGI(TAG, _val);
-        if (_val > 0)
-        {
-            //bands[band].atten = ATTN_OFF;
-            bands[band].split = 1;              
+            bands[band].split = rd_buffer[data_start_idx];
+            //ESP_LOGI("CIV", "Split: %d:", bands[band].split);
+            break;
         }
-        if (_val == 0)
-        {
-            bands[band].split = 0;
-        }
-        //displayAttn();
-        //displayPreamp();
-        break;
-    }
 
     case CIV_C_ATTN_READ:	
 		case CIV_C_ATTN_ON:
     case CIV_C_ATTN_OFF: {
         uint8_t _val = rd_buffer[data_start_idx];
-
         //ESP_LOGI(TAG, "CIV_Action:  CI-V Returned Attn status: "); ESP_LOGI(TAG, _val);
         if (_val > 0)
         {
@@ -822,7 +832,6 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         break;
 		}  // Duplex Offset
 
-
 		case CIV_C_RIT_XIT: {
         // RIT -1.97KHz
         //              RIT            1k/100Hz   10/1hz   +/1    term
@@ -850,6 +859,20 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         ESP_LOGI(TAG, "CIV_Action:  XIT On/Off: %d", radio_XIT_On_Off);
         break;
 		}  // XIT On/Off
+
+    case CIV_R_MAINSUBBAND: {
+        active_band = rd_buffer[data_start_idx];
+        if (active_band != bands[band].split) {
+            sendCatRequest(CIV_C_F_READ, 0, 0);
+            sendCatRequest(CIV_C_F25B, 0, 0);
+        }
+        //if (active_band)
+        //    ESP_LOGI("CIV", "Sub Band Active");
+        //else
+        //    ESP_LOGI("CIV", "Main Band Active");
+        bands[band].split = active_band;
+        break;
+    }
 
     case CIV_C_BSTACK: {      				// Test for Bstack message				
 				//if (CIVresultL.cmd[1] == CIV_C_BSTACK[1]) 
@@ -914,9 +937,8 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         }
         ESP_LOGI("BSTACK", "  Mode Index: %d  Mode label: %s", radio_mode, modeList[radio_mode].mode_label); 
         
-        read_Frequency(bstack_freq, data_len);
-
-  break;
+        read_Frequency(bstack_freq, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);
+        break;
 
         // convert radio bstack band code to remote bands table band index
         switch (bstack_band)
@@ -955,17 +977,20 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         break;
     }
 
-    case CIV_R_GOOD: //ESP_LOGI(TAG, "CIV_Action: *** Command Accepted by Radio"); 
+    case CIV_C_TRX_ID: ESP_LOGI("CIV", "*** Rig ID 0x%X", rd_buffer[3]);
         break;
 
-    case CIV_R_NO_GOOD: ESP_LOGI(TAG, "CIV_Action: *** Command Rejected by Radio"); 
+    case CIV_R_GOOD: //ESP_LOGI("CIV", "*** Command Accepted by Radio"); 
+        break;
+
+    case CIV_R_NO_GOOD: ESP_LOGI("CIV", "*** Command Rejected by Radio"); 
         break;
 
     case CIV_C_SCOPE_OFF:
     case CIV_C_SCOPE_ON:
-    case CIV_C_SCOPE_ALL:  // do nothing
+    case CIV_C_SCOPE_ALL: break; // do nothing
 
-    default: ESP_LOGI(TAG, "CIV_Action: *** default action"); break;
+    default: ESP_LOGI(TAG, "CIV_Action: *** default action 0x%X", rd_buffer[4]); break;
           //knowncommand = false;
   }
   #ifdef DBG_CIV2

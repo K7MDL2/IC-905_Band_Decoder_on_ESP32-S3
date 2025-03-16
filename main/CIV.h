@@ -135,6 +135,9 @@ enum cmds {
     CIV_C_SCOPE_ALL,
     CIV_R_NO_GOOD,
     CIV_R_GOOD,
+    CIV_R_MAINSUBBAND,
+    CIV_R_MAIN_BANDVFO,
+    CIV_R_SUB_BANDVFO,
     End_of_Cmd_List
 };
 
