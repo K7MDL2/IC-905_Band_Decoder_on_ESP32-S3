@@ -15,7 +15,10 @@
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
 
-15 March 2025 - Fixed a decoder crash on TX when USB Keying is enabled for non-VCP radios like the 705 and 905.  Now works with both radio types.  The precompiled folder for USB DTR keying has been replaced with one dated March 15.
+16 March 2025
+1. Fixed a decoder crash on TX when USB Keying is enabled for non-VCP radios like the 705 and 905.  Now works with both radio types.
+2. Added SubRX support for IC-9700, foiund a few small bugs.  Added more a start of CIV message validity check and filter out echos if o echo turned on.  New config file entry MAIN_TX.  1 = use Main band only for outputs.  0 does cross-band split between the Sub Rx band and the Main TX band.
+3. The precompiled folder for USB DTR keying has been replaced with one dated March 16. MAIN_TX=1 is set.
 
 4 March 2025 - If you enable USB SEND (A) DTR you can use the PTT in jack with a footswitch to key the radio via USB.  This sets up the opportunitiy to add sequencing delays controlling the RF flow.
 
