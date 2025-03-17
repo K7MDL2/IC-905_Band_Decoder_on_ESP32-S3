@@ -146,7 +146,7 @@ volatile uint8_t radio_address = RADIO_ADDR;  //Transceiver address.  0 allows a
 bool use_wired_PTT = WIRED_PTT;           // Selects source of PTT, wired input or polled state from radio.  Wired is preferred, faster.
 uint8_t read_buffer[64];  //Read buffer
 //uint8_t prev_band = 0xFF;
-uint8_t prev_band = 0;
+uint8_t prev_band = 255;
 uint64_t prev_frequency = 0;
 uint16_t poll_radio_ptt = POLL_PTT_DEFAULT;  // can be changed with detected radio address.
 uint8_t UTC = 1;  // 0 local time, 1 UTC time
@@ -858,8 +858,11 @@ void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint
         //ESP_LOGI("PTT OFF", "active band %d  main_TX %d  split %d", active_band, main_TX, bands[band].split);
         if (radio_address == IC9700 && active_band && main_TX)
             frequency = CIV_selected_vfo;
-        if (radio_address == IC9700 && active_band && !main_TX)
+        else if (radio_address == IC9700 && active_band && !main_TX)
             frequency = CIV_selected_vfo_rx;
+        else
+            frequency = CIV_selected_vfo_rx;
+
         //ESP_LOGI("FREQ","VFO 0 %llu", frequency);
     } 
     
@@ -892,7 +895,7 @@ void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint
         #endif
 
         #ifdef USE_LEDS
-            if (prev_band != 0xFF) {  // have not been through here before, make sure we have a valid band to set the LED to.
+            if (prev_band != 0xFF && init_done) {  // have not been through here before, make sure we have a valid band to set the LED to.
                 ESP_LOGI("read_Frequency", "*** Band change to %d.  prev_band was %d", band, prev_band);
                 // Turn off LED for previous band
                 ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, (ledc_channel_t) prev_band, LEDC_OFF_DUTY));
@@ -913,6 +916,7 @@ void read_Frequency(uint64_t CIV_selected_vfo, uint64_t CIV_unselected_vfo, uint
         Band_Decode_Output(band);
         prev_band = band;
     }
+
     uint64_t display_freq = CIV_selected_vfo_rx;
     if (display_freq != prev_frequency) {
         ESP_LOGI(TAG,"Freq %-13llu  band =  %d   radio_address %X", display_freq, band, radio_address);

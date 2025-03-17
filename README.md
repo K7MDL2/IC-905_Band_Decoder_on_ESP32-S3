@@ -14,6 +14,7 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/ESP3--S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
+17 March 2025 - Fixed bug where frequency was not initialized at startup, so the initial band was invalid (0) and no BAND LED would be lit.  The precompiled file is updated to 17 March. and includes USB (A)SEND DTR.
 
 16 March 2025
 1. Fixed a decoder crash on TX when USB Keying is enabled for non-VCP radios like the 705 and 905.  Now works with both radio types.
