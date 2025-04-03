@@ -50,13 +50,13 @@
 
 //#define PROTOTYPE           // PIN and ADC assignments unique to the prototype build
 
-//#define CIV_SERIAL            // Pass through CI_V bus data on serial (USB or analog) between radio and PC
+#define CIV_SERIAL   1          // 1 = Pass through CI_V bus data on serial (USB or analog) between radio and PC
 
 //#define UART_DEBUG            // 3rd UART channel for debugging radio CI-V to Radio bridging
 
 //#define REMOTE_BOARD          // Use BCD output patterns instead of 1 of 6 to control the Remote BCD Band Decoder PCB.
 
-#define USB_KEYING              // Use external keying. When the PTT in jack is active, send DTR over USB to key the radio. Used for sequencing.
+#define USB_KEYING              // Use external keying. When the PTT-In jack is active, send DTR over USB to key the radio. Used for sequencing.
 
 #define MAIN_TX 1              // IC-9700 Only. If 0, switch outputs between active Sub RX and Main TX frequency.  If 1 only use the Main band frequency for outputs.
 
@@ -69,7 +69,7 @@
     #undef USE_LEDS
 #endif
 
-#define CONTROLLER_ADDRESS 0xE0   // E1 used by wfView  //Controller address - not used for receive validation, used on TX to radio.
+#define CONTROLLER_ADDRESS 0xE5   // E1 used by wfView  //Controller address - not used for receive validation, used on TX to radio.  E0 used by WSJT-x
 #define BROADCAST_ADDRESS 0x00
 #define START_BYTE 0xFE  // Start byte
 #define STOP_BYTE 0xFD   // Stop byte

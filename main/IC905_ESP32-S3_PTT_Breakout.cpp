@@ -95,6 +95,7 @@ int sendData2(const char* logName, const char* data);
 uint8_t Get_Radio_address(void);
 int add(char c);
 int remove(void);
+void do_PTT(bool _PTT);
 
 // default band table.  This will be overwritten depending on what radio CIV address is detected
 struct Bands bands[NUM_OF_BANDS] = {
@@ -240,6 +241,42 @@ auto vcp = std::unique_ptr<CdcAcmDevice>(nullptr);  // This will point to a devi
 
 uint32_t led_bright_level = LED_BRIGHT_LEVEL;   // New level to set LEDs to
 
+void do_PTT(bool _PTT) 
+{
+    //ESP_LOGI("do_PTT","CIV selected_vfo %llu  unselected_vfo %llu  selected_vfo_rx %llu ", CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx);
+    
+    // Trigger VFO swaps if needed and sequence PTT before and after any band changes
+    if (_PTT) {    
+        read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, _PTT);
+        vTaskDelay(pdMS_TO_TICKS(10));
+        PTT_Output(band, _PTT);
+    }
+    else {
+        PTT_Output(band, _PTT); 
+        vTaskDelay(pdMS_TO_TICKS(10)); 
+        read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, _PTT);
+    }
+
+    #ifdef USE_LEDS  // toggle PTT LED
+        if (_PTT) {
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
+            //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
+            flash_PTT_LED(1, (ledc_channel_t) band);
+        } else {
+            ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
+            //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
+            flash_PTT_LED(0, (ledc_channel_t) band);
+        }
+        // Update duty cycle to apply the new value
+        ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
+    #else
+        // 100% ON or OFF.  This is too bright so use PWM method preferred
+        gpio_set_level(GPIO_NUM_48, !_PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
+        refresh_display();
+    #endif
+    display_PTT(_PTT, false);
+}
+
 // Mask all 12 of our Band and PTT output pins for Output mode, also our 8 LED output pins
 #ifdef USE_LEDS                            
     #define GPIO_OUTPUT_PIN_SEL ( 1ULL<<GPIO_BAND_OUTPUT_144  | 1ULL<<GPIO_BAND_OUTPUT_430  | 1ULL<<GPIO_BAND_OUTPUT_1200 \
@@ -298,19 +335,7 @@ static void gpio_PTT_Input(void* arg)
             //ESP_LOGI(TAG,"GPIO[%lu] intr, val: %d", io_num, PTT);
 
             if (init_done) {
-                //ESP_LOGI("PTT","CIV selected_vfo %llu  unselected_vfo %llu  selected_vfo_rx %llu ", CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx);
-                
-                // Trigger VFO swaps if needed and sequence PTT before and after any band changes
-                if (PTT) {    
-                    read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);
-                    vTaskDelay(pdMS_TO_TICKS(10));
-                    PTT_Output(band, PTT);
-                }
-                else {
-                    PTT_Output(band, PTT); 
-                    vTaskDelay(pdMS_TO_TICKS(10)); 
-                    read_Frequency(CIV_selected_vfo, CIV_unselected_vfo, CIV_selected_vfo_rx, PTT);
-                }
+                do_PTT(PTT);
                 
                 #ifdef USB_KEYING
                     if (vcp != nullptr)
@@ -323,25 +348,6 @@ static void gpio_PTT_Input(void* arg)
                             ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, true, false));
                         else
                             ESP_ERROR_CHECK(cdc_acm_host_set_control_line_state(cdc_dev, false, false));
-                #endif
-                display_PTT(PTT, false);
-                
-                #ifdef USE_LEDS  // toggle PTT LED
-                    if (PTT) {
-                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, led_bright_level));
-                        //ESP_ERROR_CHECK(ledc_timer_resume(LEDC_MODE, LED_TIMER_PTT));
-                        flash_PTT_LED(1, (ledc_channel_t) band);
-                    } else {
-                        ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH, LEDC_OFF_DUTY));
-                        //ESP_ERROR_CHECK(ledc_timer_pause(LEDC_MODE, LED_TIMER_PTT));
-                        flash_PTT_LED(0, (ledc_channel_t) band);
-                    }
-                    // Update duty to apply the new value
-                    ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_PTT_IN_OUTPUT_CH));
-                #else
-                    // 100% ON or OFF.  This is too bright so use PWM method preferred
-                    gpio_set_level(GPIO_NUM_48, !PTT);   // Pin is Open Drain, set to 0 to close to GND and turn on LED.
-                    refresh_display();
                 #endif
             }
         }
@@ -447,7 +453,7 @@ static void gpio_PTT_Input(void* arg)
                     if (data[rxBytes-1] == 0xFD)
                     {
                         //ESP_LOG_BUFFER_HEXDUMP("rx_task", pData, data_len, ESP_LOG_INFO);
-                        processCatMessages(data, rxBytes);
+                        //processCatMessages();
                     }
                 }
             }
@@ -475,17 +481,19 @@ static bool handle_rx(const uint8_t *pData, size_t data_len, void *arg)
 {
     //ESP_LOG_BUFFER_HEXDUMP("handle_rx", pData, data_len, ESP_LOG_INFO);
     //printf("%.*s", data_len, data);
+    //const int txBytes = uart_write_bytes(UART_NUM_0, pData, data_len);   // Send radio messages to PC
     // add characters to the ring buffer
     int i;
     for (i = 0; i < data_len; i++)
     {
         add(pData[i]);    // usb loop task will pull this data out
         //ESP_LOG_BUFFER_HEXDUMP("handle_rx-1", &pData[i], 1, ESP_LOG_INFO);
+
         if (pData[i] == 0xFD)  // end of a complete message, process it.
         {
             #ifdef CIV_SERIAL        
-            if (init_done)
-                const int txBytes = uart_write_bytes(UART_NUM_0, pData, data_len); 
+            if (init_done && pData[2] != CONTROLLER_ADDRESS)  // do not forward to PC internal polling responses
+                const int txBytes = uart_write_bytes(UART_NUM_0, pData, i+1); 
             #endif
             //ESP_LOG_BUFFER_HEXDUMP("handle_rx-2", pData, i+1, ESP_LOG_INFO);
         }
@@ -592,7 +600,8 @@ int remove(void) {
 static void usb_loop_task(void *arg)
 {
     static uint32_t last_level = 0;  // remember the last LED brightness level
-    static uint64_t time_last_disp_1SEC = esp_timer_get_time();
+    static uint64_t time_last_1SEC = esp_timer_get_time();
+    static uint64_t time_last_PTT = esp_timer_get_time();
 
     while (1) {
         processCatMessages(); //pData, data_len);   
@@ -604,6 +613,14 @@ static void usb_loop_task(void *arg)
         }
         vTaskDelay(pdMS_TO_TICKS(10));
        
+        if (init_done && !use_wired_PTT && (esp_timer_get_time() >= time_last_PTT + POLL_PTT_DEFAULT*1000)) {
+            sendCatRequest(CIV_C_TX, 0, 0); 
+            vTaskDelay(pdMS_TO_TICKS(10));
+            processCatMessages();
+            //printf("***Polled for Radio TX Mode %d\n", PTT);
+            time_last_PTT = esp_timer_get_time();
+        }
+
         #ifndef USE_LEDS
             refresh_display();
         #else 
@@ -647,27 +664,29 @@ static void usb_loop_task(void *arg)
             
             if (USBH_connected && init_done) {
                 // 1 second timer
-                if (esp_timer_get_time() >= time_last_disp_1SEC + POLL_RADIO_1SEC*1000) {
+                if (esp_timer_get_time() >= time_last_1SEC + POLL_RADIO_1SEC*1000) {
                     PowerOn_LED(1);  // Turn on PowerOn LED solid if have a good radio connection
                     if (radio_address == IC9700 && !PTT) {    
                         sendCatRequest(CIV_R_MAINSUBBAND, 0, 0); 
-                        processCatMessages(); //pData, data_len);   
+                        processCatMessages(); 
                     }
+                    //#ifndef CIV_SERIAL
                     if (!PTT) {
                         sendCatRequest(CIV_C_F25A, 0, 0); 
                         vTaskDelay(pdMS_TO_TICKS(10));                    
-                        processCatMessages(); //pData, data_len);  
+                        processCatMessages();
                         sendCatRequest(CIV_C_F25B, 0, 0); 
                         vTaskDelay(pdMS_TO_TICKS(10));                    
-                        processCatMessages(); //pData, data_len);   
+                        processCatMessages();
                         sendCatRequest(CIV_C_F_READ, 0, 0); 
                         vTaskDelay(pdMS_TO_TICKS(10));
-                        processCatMessages(); //pData, data_len);   
+                        processCatMessages();
                         sendCatRequest(CIV_C_SPLIT_READ, 0, 0); 
                         vTaskDelay(pdMS_TO_TICKS(10));
-                        processCatMessages(); //pData, data_len);   
+                        processCatMessages(); 
                     }
-                    time_last_disp_1SEC = esp_timer_get_time();
+                    //#endif
+                    time_last_1SEC = esp_timer_get_time();
                 }
             }
             else if (USBH_connected) {

@@ -51,6 +51,7 @@ extern struct tm tm;
 extern time_t t;
 extern void blink_led(uint8_t s_led_state , char color);
 extern int sendData2(const char* logName, const char* data);
+extern void do_PTT(bool _PTT);
 
 uint8_t radio_mode;      // mode from radio messages
 uint8_t radio_filter;    // filter from radio messages
@@ -520,9 +521,10 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
         PTT = rd_buffer[6] == 1 ? true : false;
         if (TX_last != PTT)
         {
-          if (!use_wired_PTT)        // normally the wired input will pass thru the PTT from radio hardware PTT. 
-          //PTT_Output(band, PTT);   //  If that is not available, then use the radio polled TX state .
-          //Serial.printf("CIV_Action: TX Status = %d\n", PTT);
+          if (!use_wired_PTT) {       // normally the wired input will pass thru the PTT from radio hardware PTT. 
+            //printf("CIV_Action: TX Status = %d\n", PTT);
+            //do_PTT(PTT);
+          }
           TX_last = PTT;
         }        
         break;                     // Call PTT output here rather than in teh main loop to avoid any loop delay time.
