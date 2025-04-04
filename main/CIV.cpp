@@ -496,11 +496,11 @@ void CIV_Action(const uint8_t cmd_num, const uint8_t data_start_idx, const uint8
             //ESP_LOGI("CIV_Action", "Freq %-13llu\n", f);
 
             // Handle IC9700 Sub RX
-            if (rd_buffer[4] == 0x25 and rd_buffer[5] == 1) {
+            if (rd_buffer[4] == 0x25 && rd_buffer[5] == 1) {
                     CIV_unselected_vfo = f;
                     //ESP_LOGI("CIV","VFOB x25 Main CIV_unselected_vfo %llu", CIV_unselected_vfo);
             }
-            else if (rd_buffer[4] == 0x25 and rd_buffer[5] == 0) {
+            else if (rd_buffer[4] == 0x25 && rd_buffer[5] == 0) {
                     CIV_selected_vfo = f;
                     //ESP_LOGI("CIV","VFOA x25 Main CIV_selected_vfo %llu", CIV_selected_vfo);
             }
