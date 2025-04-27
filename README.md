@@ -14,6 +14,8 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/ESP3--S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
+25 April - Changing to controller address 0xE5 for pc passthrough, broke Get_Address() on startup which broke band output during TX.  Fixed.   Precomplied build for April 25, 2025 updated.
+
 3 April 2025
 1. Broke poll-for-PTT option when I added the 9700 stuff. Now Fixed.
 2. Changed the decoder's controller address to 0xE5 so it does not conflict with wfView or WSJT-X which use E1 and E0. The Decoder periodically polls the radio for frequency and split status.  These are filtered out so the PC side never sees them.  This allows logging and WSJT-X programs to transparently communicate to the radio over USB serial as normal.  Note that the Audio-over-USB is not passed through.  You can get the audio frnm analog jacks or use LAN or WIFI connection using a remote program like wfView or RS-BA1.
