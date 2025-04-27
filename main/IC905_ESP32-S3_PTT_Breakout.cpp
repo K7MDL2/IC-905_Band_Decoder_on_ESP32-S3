@@ -1484,10 +1484,10 @@ void refresh_display(void) {
 uint8_t Get_Radio_address(void) {
     static uint8_t retry_Count = 0;
     
-    if (USBH_connected)
+    if (USBH_connected && radio_address_received != CONTROLLER_ADDRESS)
     {
-        if (radio_address == 0x00 || radio_address == 0xFF || radio_address == 0xE0) {
-            if (radio_address_received == 0 || radio_address_received == 0xE0) {
+        if (radio_address == 0x00 || radio_address == 0xFF) {
+            if (radio_address_received == 0) {
                 ESP_LOGI("Get_Radio_address:", "Radio not found - retry count = %X", retry_Count);
                 vTaskDelay(100);
                 retry_Count++;
@@ -1802,7 +1802,7 @@ extern "C" void app_main(void)
             processCatMessages();
 
             ESP_LOGI(TAG, "***Turn OFF scope data from radio");
-            sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope daa in case it is still on
+            sendCatRequest(CIV_C_SCOPE_OFF, 0, 0);  // Turn Off scope data in case it is still on
             vTaskDelay(pdMS_TO_TICKS(100));
             processCatMessages();
 
