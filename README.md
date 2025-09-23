@@ -14,6 +14,8 @@
 [esp32s3DevKitC1]: https://img.shields.io/badge/ESP3--S3_DevKitC1-blue "ESP32s3DevKitC-1"
 [M5AtomS3]: https://img.shields.io/badge/M5AtomS3-orange "M5AtomS3"
 
+23 Sept 2025 - IF you need to switch +V on your outputs instread of the current switch to GND it appears the Toshiba TD62787APG chip may be an easy swap out for the ULN2803A using on this PCB.  You would need to isolate pin 9 from GND and connect 12VDC or 24VDC (rated max is 50VDC) to pin 9 to supply voltage on the output pins.  I have several multi-pole SMA coaxial relays that are common ground so I may get some of these.  Should add a solder jumper pad to select GND or +V to pin 9. Pin 10 would be different also if you use that pin. It is unconnected on my PCB design.
+
 25 April - Changing to controller address 0xE5 for pc passthrough, broke Get_Address() on startup which broke band output during TX.  Fixed.   Precompiled build for April 25, 2025 updated.
 
 Made a bracket for the Decoder to mount on the back of the Peovi cage on my 905.  Ordered some premade cables including 12" right angle USB and DC Power barrel jumper cable.  Made a right angle 3.5mm stereo plug to straight RCA for PTT.
